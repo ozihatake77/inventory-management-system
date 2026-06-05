@@ -1046,6 +1046,24 @@ def export_excel(request: Request, tipe: str):
                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 # ═══════════════════════════════════════════════════════════════════════
+# TEMP: Backdate sales for demo
+# ═══════════════════════════════════════════════════════════════════════
+@app.get("/admin/backdate-demo")
+def backdate_demo():
+    """Backdate recent sales to last week for demo purposes"""
+    with get_db() as db:
+        import random
+        sales = db.execute("SELECT id FROM penjualan ORDER BY id DESC LIMIT 12").fetchall()
+        for i, sale in enumerate(sales):
+            days_ago = random.randint(1, 7)
+            hour = random.randint(8, 17)
+            minute = random.randint(0, 59)
+            new_date = (datetime.now() - timedelta(days=days_ago)).strftime(f"%Y-%m-%d {hour}:{minute}:00")
+            db.execute("UPDATE penjualan SET created_at = ? WHERE id = ?", (new_date, sale["id"]))
+            db.execute("UPDATE stok_mutasi SET created_at = ? WHERE tipe='keluar' AND keterangan LIKE 'Penjualan%' ORDER BY id DESC LIMIT 1", (new_date,))
+    return {"status": "ok", "message": "Sales backdated to last 7 days"}
+
+# ═══════════════════════════════════════════════════════════════════════
 # Run
 # ═══════════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
