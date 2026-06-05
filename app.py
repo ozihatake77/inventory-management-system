@@ -353,7 +353,7 @@ def dashboard(request: Request):
 
         bulan_ini = datetime.now().strftime("%Y-%m")
         penjualan_bulan = db.execute(
-            "SELECT COALESCE(SUM(total), 0), COALESCE(SUM(keuntungan), 0), COUNT(*) FROM penjualan WHERE strftime('%%Y-%%m', created_at) = ?",
+            "SELECT COALESCE(SUM(total), 0), COALESCE(SUM(keuntungan), 0), COUNT(*) FROM penjualan WHERE strftime('%Y-%m', created_at) = ?",
             (bulan_ini,)).fetchone()
 
         minggu_lalu = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
@@ -386,7 +386,7 @@ def dashboard(request: Request):
         top_produk = db.execute("""
             SELECT p.nama, SUM(pen.jumlah) as total_qty, SUM(pen.total) as total_rp
             FROM penjualan pen JOIN produk p ON pen.produk_id = p.id
-            WHERE strftime('%%Y-%%m', pen.created_at) = ?
+            WHERE strftime('%Y-%m', pen.created_at) = ?
             GROUP BY p.id ORDER BY total_qty DESC LIMIT 5
         """, (bulan_ini,)).fetchall()
 
@@ -1044,24 +1044,6 @@ def export_excel(request: Request, tipe: str):
     wb.save(filepath)
     return FileResponse(filepath, filename=filename,
                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-# ═══════════════════════════════════════════════════════════════════════
-# TEMP: Backdate sales for demo
-# ═══════════════════════════════════════════════════════════════════════
-@app.get("/admin/backdate-demo")
-def backdate_demo():
-    """Backdate recent sales to last week for demo purposes"""
-    with get_db() as db:
-        import random
-        sales = db.execute("SELECT id FROM penjualan ORDER BY id DESC LIMIT 12").fetchall()
-        for i, sale in enumerate(sales):
-            days_ago = random.randint(1, 7)
-            hour = random.randint(8, 17)
-            minute = random.randint(0, 59)
-            new_date = (datetime.now() - timedelta(days=days_ago)).strftime(f"%Y-%m-%d {hour}:{minute}:00")
-            db.execute("UPDATE penjualan SET created_at = ? WHERE id = ?", (new_date, sale["id"]))
-            db.execute("UPDATE stok_mutasi SET created_at = ? WHERE tipe='keluar' AND keterangan LIKE 'Penjualan%' ORDER BY id DESC LIMIT 1", (new_date,))
-    return {"status": "ok", "message": "Sales backdated to last 7 days"}
 
 # ═══════════════════════════════════════════════════════════════════════
 # Run
