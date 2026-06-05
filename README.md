@@ -1,85 +1,84 @@
-# 📦 Stok Toko Elektronik
+# 📦 Inventory Management System
 
-> **Sistem Manajemen Stok & Penjualan Toko Elektronik Rumah Tangga**
+> **Web-based Inventory & Sales Management System for Electronics Retail Stores**
 
-Aplikasi web untuk mengelola inventaris, penjualan, dan keuangan toko elektronik rumah tangga. Dirancang untuk memudahkan pemilik toko dan karyawan dalam mengelola stok barang, mencatat transaksi, dan memantau keuntungan.
+A comprehensive web application for managing inventory, sales, and finances for home electronics retail stores. Built for store owners and employees to efficiently track stock, record transactions, and monitor profitability.
 
-## ✨ Fitur Utama
+## ✨ Key Features
 
 ### 📊 Dashboard
-- Ringkasan penjualan harian, mingguan, dan bulanan
-- Grafik penjualan 7 hari terakhir
-- Produk terlaris bulan ini
-- Notifikasi stok menipis
-- Mutasi stok terbaru
+- Daily, weekly, and monthly sales overview
+- 7-day sales trend chart
+- Top selling products this month
+- Low stock alerts
+- Recent stock mutations
 
-### 📱 Manajemen Produk
-- CRUD produk lengkap (tambah, edit, hapus)
-- Kategori produk (TV, Kulkas, Mesin Cuci, AC, dll)
-- Harga modal & harga jual
-- Stok minimum & barcode
-- Riwayat perubahan harga
+### 📱 Product Management
+- Full CRUD operations (Create, Read, Update, Delete)
+- Product categories (TV, Refrigerator, Washing Machine, AC, etc.)
+- Cost price & selling price tracking
+- Minimum stock threshold & barcode support
+- Price change history
 
-### 📥 Stok Masuk & Keluar
-- Catat barang masuk dari supplier
-- Catat barang keluar (rusak, hilang, retur)
-- Otomatis update stok saat penjualan
-- Riwayat mutasi stok lengkap
+### 📥 Stock In & Out
+- Record incoming stock from suppliers
+- Record outgoing stock (damaged, lost, returns)
+- Auto stock update on sales
+- Complete stock mutation history
 
-### 💰 Penjualan & Nota
-- Input penjualan dengan pilih pelanggan
-- Otomatis hitung keuntungan
-- Cetak nota/struk penjualan
-- Support metode bayar tunai & hutang
+### 💰 Sales & Invoicing
+- Sales input with customer selection
+- Automatic profit calculation
+- Printable invoice/receipt
+- Support for cash & credit payment methods
 
-### 👥 Pelanggan
-- Data pelanggan lengkap (nama, alamat, telepon)
-- Riwayat transaksi per pelanggan
-- Piutang pelanggan
+### 👥 Customer Management
+- Complete customer data (name, address, phone)
+- Transaction history per customer
+- Customer receivables tracking
 
-### 💳 Hutang & Piutang
-- Catat penjualan dengan metode hutang
-- Jatuh tempo otomatis (30 hari)
-- Bayar hutang sebagian/seluruhnya
-- Notifikasi hutang jatuh tempo
+### 💳 Accounts Receivable
+- Credit sales with automatic due dates (30 days)
+- Partial/full payment tracking
+- Due date notifications
 
-### 📈 Laporan Keuntungan
-- Laporan harian, mingguan, bulanan
-- Grafik penjualan & keuntungan
-- Export ke Excel (.xlsx)
+### 📈 Profit Reports
+- Daily, weekly, monthly reports
+- Sales & profit charts
+- Export to Excel (.xlsx)
 
-### 🔐 Autentikasi & Role
-- Login dengan username & password
-- Role **Bos** (akses penuh) dan **Karyawan** (terbatas)
-- Kelola user (tambah, edit, hapus)
+### 🔐 Authentication & Roles
+- Username & password login
+- **Admin** role (full access) and **Employee** role (limited)
+- User management (add, edit, delete)
 
 ### 💾 Backup & Restore
-- Backup database otomatis
-- Restore dari file backup
-- Download backup
+- Automatic database backup
+- Restore from backup file
+- Download backup files
 
 ### 📱 Responsive Design
-- Tampilan responsif (desktop & mobile)
-- Sidebar navigasi
-- Dark mode ready
+- Responsive layout (desktop & mobile)
+- Sidebar navigation
+- Mobile-friendly interface
 
 ## 🛠️ Tech Stack
 
-| Komponen | Teknologi |
-|----------|-----------|
+| Component | Technology |
+|-----------|------------|
 | **Backend** | Python FastAPI |
 | **Database** | SQLite |
 | **Frontend** | HTML, TailwindCSS, Alpine.js |
-| **Chart** | Chart.js |
+| **Charts** | Chart.js |
 | **Export** | OpenPyXL (Excel) |
 | **Server** | Uvicorn |
 
-## 🚀 Cara Install
+## 🚀 Installation
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/ozihatake77/App-penjualan.git
-cd App-penjualan
+git clone https://github.com/ozihatake77/inventory-management-system.git
+cd inventory-management-system
 ```
 
 ### 2. Install Dependencies
@@ -87,78 +86,86 @@ cd App-penjualan
 pip install -r requirements.txt
 ```
 
-### 3. Jalankan Aplikasi
+### 3. Run Application
 ```bash
 python app.py
 ```
 
-### 4. Buka Browser
+### 4. Open Browser
 ```
 http://localhost:8000
 ```
 
-## 🔑 Login Default
+## 🔑 Default Login
 
 | Role | Username | Password |
 |------|----------|----------|
-| **Bos** | `admin` | `admin123` |
+| **Admin** | `admin` | `admin123` |
 
 ## 📸 Screenshots
 
 ### Dashboard
-![Dashboard](https://via.placeholder.com/800x400?text=Dashboard+Screenshot)
+![Dashboard](screenshots/dashboard.png)
 
-### Data Produk
-![Produk](https://via.placeholder.com/800x400?text=Produk+Screenshot)
+### Product Management
+![Products](screenshots/products.png)
 
-### Penjualan
-![Penjualan](https://via.placeholder.com/800x400?text=Penjualan+Screenshot)
+### Sales
+![Sales](screenshots/sales.png)
 
-## 📁 Struktur Project
+## 📁 Project Structure
 
 ```
-App-penjualan/
-├── app.py                 # Backend FastAPI (semua route & logic)
-├── requirements.txt       # Dependencies Python
-├── Procfile              # Config deployment Railway
-├── .gitignore            # File yang di-ignore Git
-├── static/               # File statis (CSS, JS, gambar)
-└── templates/            # Template HTML (Jinja2)
-    ├── base.html         # Layout utama (sidebar + header)
-    ├── login.html        # Halaman login
-    ├── dashboard.html    # Dashboard utama
-    ├── produk.html       # Manajemen produk
-    ├── kategori.html     # Manajemen kategori
-    ├── pelanggan.html    # Manajemen pelanggan
-    ├── stok_masuk.html   # Input stok masuk
-    ├── stok_keluar.html  # Input stok keluar
-    ├── opname.html       # Stok opname
-    ├── penjualan.html    # Input penjualan
-    ├── nota.html         # Cetak nota
-    ├── hutang.html       # Hutang & piutang
-    ├── laporan.html      # Laporan keuntungan
-    ├── users.html        # Kelola user
+inventory-management-system/
+├── app.py                 # FastAPI backend (routes & logic)
+├── requirements.txt       # Python dependencies
+├── Procfile              # Railway deployment config
+├── .gitignore            # Git ignore rules
+├── static/               # Static files (CSS, JS, images)
+└── templates/            # Jinja2 HTML templates
+    ├── base.html         # Main layout (sidebar + header)
+    ├── login.html        # Login page
+    ├── dashboard.html    # Main dashboard
+    ├── produk.html       # Product management
+    ├── kategori.html     # Category management
+    ├── pelanggan.html    # Customer management
+    ├── stok_masuk.html   # Stock in
+    ├── stok_keluar.html  # Stock out
+    ├── opname.html       # Stock opname
+    ├── penjualan.html    # Sales
+    ├── nota.html         # Invoice printing
+    ├── hutang.html       # Accounts receivable
+    ├── laporan.html      # Profit reports
+    ├── users.html        # User management
     ├── backup.html       # Backup & restore
-    ├── notifikasi.html   # Notifikasi
-    └── riwayat_harga.html # Riwayat harga
+    ├── notifikasi.html   # Notifications
+    └── riwayat_harga.html # Price history
 ```
 
-## 🎯 Target Pengguna
+## 🎯 Target Users
 
-- Toko elektronik rumah tangga
-- Usaha kecil-menengah (UKM)
-- Freelance developer yang butuh app inventaris
+- Home electronics retail stores
+- Small & medium enterprises (SMEs)
+- Freelance developers needing inventory apps
 
-## 💡 Keunggulan
+## 💡 Advantages
 
-- ✅ **Gratis & Open Source** - Tidak perlu bayar lisensi
-- ✅ **Mudah Digunakan** - Interface intuitif
-- ✅ **Responsif** - Bisa diakses dari HP/Tablet
-- ✅ **Offline Ready** - Database SQLite lokal
-- ✅ **Customizable** - Mudah dimodifikasi sesuai kebutuhan
-- ✅ **Deploy Mudah** - Bisa di Railway, VPS, atau hosting biasa
+- ✅ **Free & Open Source** - No license fees
+- ✅ **Easy to Use** - Intuitive interface
+- ✅ **Responsive** - Accessible from mobile/tablet
+- ✅ **Offline Ready** - Local SQLite database
+- ✅ **Customizable** - Easy to modify as needed
+- ✅ **Easy Deploy** - Works on Railway, VPS, or shared hosting
 
-## 📞 Kontak
+## 🌐 Live Demo
+
+🔗 **[https://prototypepenjualan.up.railway.app](https://prototypepenjualan.up.railway.app)**
+
+**Demo Credentials:**
+- Username: `admin`
+- Password: `admin123`
+
+## 📞 Contact
 
 **Developer:** Ozihatake  
 **GitHub:** [@ozihatake77](https://github.com/ozihatake77)  
@@ -166,7 +173,7 @@ App-penjualan/
 
 ## 📄 License
 
-MIT License - Silakan digunakan dan dimodifikasi sesuai kebutuhan.
+MIT License - Free to use and modify as needed.
 
 ---
 
