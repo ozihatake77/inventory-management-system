@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.db
+*.db-shm
+*.db-wal
+backups/
+exports/
+.env
+*.log
+.DS_Store
+Thumbs.db

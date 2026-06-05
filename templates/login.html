@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Stok Toko Elektronik</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>* { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="bg-gradient-to-br from-blue-900 to-blue-700 min-h-screen flex items-center justify-center p-4">
+
+<div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+    <div class="text-center mb-8">
+        <div class="text-5xl mb-3">📦</div>
+        <h1 class="text-2xl font-bold text-gray-800">Stok Toko Elektronik</h1>
+        <p class="text-gray-500 text-sm mt-1">Silakan login untuk melanjutkan</p>
+    </div>
+
+    {% if error %}
+    <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
+        ⚠️ {{ error }}
+    </div>
+    {% endif %}
+
+    <form method="post" action="/login" class="space-y-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+            <input name="username" required autofocus placeholder="Masukkan username"
+                   class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <input name="password" type="password" required placeholder="Masukkan password"
+                   class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+        </div>
+        <button type="submit"
+                class="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition shadow-lg shadow-blue-600/30">
+            🔐 Login
+        </button>
+    </form>
+
+    <div class="mt-6 text-center text-xs text-gray-400">
+        <p>Default login: <strong>admin</strong> / <strong>admin123</strong></p>
+        <p class="mt-1">Hubungi admin jika lupa password</p>
+    </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Backup Data{% endblock %}
+{% block header %}💾 Backup Data{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-xl shadow-sm border p-5 mb-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h3 class="font-semibold text-gray-800">Backup Database</h3>
+            <p class="text-sm text-gray-500 mt-1">Backup otomatis dijalankan setiap kali server start. Anda juga bisa manual backup di sini.</p>
+        </div>
+        <form method="post" action="/backup/buat">
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">💾 Backup Sekarang</button>
+        </form>
+    </div>
+</div>
+
+<div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Tanggal</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">File</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Ukuran</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Aksi</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for b in backups %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3">{{ b.created_at|format_date }}</td>
+                    <td class="px-4 py-3 font-mono text-xs">{{ b.filename }}</td>
+                    <td class="px-4 py-3 text-right">{{ "%.1f"|format(b.ukuran/1024) }} KB</td>
+                    <td class="px-4 py-3 text-center">
+                        <div class="flex gap-1 justify-center">
+                            <a href="/backup/download/{{ b.filename }}" class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200">📥 Download</a>
+                            <a href="/backup/restore/{{ b.filename }}" onclick="return confirm('Restore backup ini? Data saat ini akan di-backup dulu.')"
+                               class="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs hover:bg-orange-200">🔄 Restore</a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if not backups %}
+    <div class="text-center py-12 text-gray-400"><p class="text-4xl mb-2">💾</p><p>Belum ada backup</p></div>
+    {% endif %}
+</div>
+{% endblock %}

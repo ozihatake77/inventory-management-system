@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Nota #{{ pen.id }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { font-family: 'Courier New', monospace; }
+        @media print {
+            body { width: 80mm; margin: 0; padding: 5mm; }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4">
+<div class="max-w-md mx-auto bg-white shadow-lg rounded-lg overflow-hidden">
+    <div class="no-print p-4 bg-gray-50 flex justify-between items-center">
+        <a href="/penjualan" class="text-blue-600 text-sm">← Kembali</a>
+        <button onclick="window.print()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">🖨️ Cetak</button>
+    </div>
+
+    <div class="p-6" id="nota">
+        <div class="text-center border-b-2 border-dashed border-gray-300 pb-4 mb-4">
+            <h1 class="text-xl font-bold">📦 TOKO ELEKTRONIK</h1>
+            <p class="text-xs text-gray-500">Jl. Contoh No. 123, Kota</p>
+            <p class="text-xs text-gray-500">Telp: 0812-xxxx-xxxx</p>
+        </div>
+
+        <div class="text-xs mb-4 space-y-1">
+            <div class="flex justify-between">
+                <span>No: #{{ "%06d"|format(pen.id) }}</span>
+                <span>{{ pen.created_at|format_date }}</span>
+            </div>
+            <div class="flex justify-between">
+                <span>Kasir: {{ pen.user_nama or '-' }}</span>
+            </div>
+            {% if pen.pelanggan_nama %}
+            <div class="flex justify-between">
+                <span>Pelanggan: {{ pen.pelanggan_nama }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="border-t border-b border-dashed border-gray-300 py-3 mb-3">
+            <div class="flex justify-between text-sm font-bold mb-1">
+                <span>{{ pen.produk_nama }}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span>{{ pen.jumlah }} x {{ pen.harga_satuan|rupiah }}</span>
+                <span class="font-bold">{{ pen.total|rupiah }}</span>
+            </div>
+            {% if pen.keterangan %}
+            <p class="text-xs text-gray-500 mt-1">Note: {{ pen.keterangan }}</p>
+            {% endif %}
+        </div>
+
+        <div class="border-b-2 border-dashed border-gray-300 pb-3 mb-4">
+            <div class="flex justify-between text-lg font-bold">
+                <span>TOTAL</span>
+                <span>{{ pen.total|rupiah }}</span>
+            </div>
+        </div>
+
+        <div class="text-center text-xs text-gray-500">
+            <p>Terima kasih atas kunjungan Anda!</p>
+            <p>Barang yang sudah dibeli tidak dapat dikembalikan</p>
+            <p class="mt-2">*** Struk ini adalah bukti pembayaran yang sah ***</p>
+        </div>
+    </div>
+</div>
+</body>
+</html>

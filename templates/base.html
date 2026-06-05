@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Stok Toko Elektronik{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        [x-cloak] { display: none !important; }
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen" x-data="{ sidebarOpen: false }">
+
+<div x-show="sidebarOpen" x-cloak class="fixed inset-0 z-40 bg-black/50 lg:hidden" @click="sidebarOpen = false"></div>
+
+<aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+       class="fixed inset-y-0 left-0 z-50 w-64 bg-gradient-to-b from-blue-900 to-blue-800 text-white transform transition-transform lg:translate-x-0 lg:static lg:z-auto overflow-y-auto">
+    <div class="p-4 border-b border-blue-700">
+        <h1 class="text-xl font-bold flex items-center gap-2"><span class="text-2xl">📦</span> Stok Toko</h1>
+        <p class="text-blue-300 text-xs mt-1">Elektronik Rumah Tangga</p>
+    </div>
+    <nav class="p-3 space-y-1">
+        <a href="/" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if request.url.path == '/' %}bg-blue-700 font-medium{% endif %}">
+            <span>📊</span> Dashboard
+        </a>
+        <a href="/produk" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/produk' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>📱</span> Produk
+        </a>
+        <a href="/kategori" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/kategori' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>🏷️</span> Kategori
+        </a>
+        <a href="/pelanggan" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/pelanggan' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>👥</span> Pelanggan
+        </a>
+
+        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider">Stok</div>
+        <a href="/stok/masuk" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/stok/masuk' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>📥</span> Stok Masuk
+        </a>
+        <a href="/stok/keluar" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/stok/keluar' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>📤</span> Stok Keluar
+        </a>
+        <a href="/opname" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/opname' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>📋</span> Stok Opname
+        </a>
+
+        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider">Keuangan</div>
+        <a href="/penjualan" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/penjualan' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>💰</span> Penjualan
+        </a>
+        <a href="/hutang" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/hutang' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>💳</span> Hutang/Piutang
+        </a>
+        <a href="/laporan" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/laporan' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>📈</span> Laporan Keuntungan
+        </a>
+
+        {% if user and user.role == 'bos' %}
+        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider">Admin</div>
+        <a href="/users" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/users' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>👤</span> Kelola User
+        </a>
+        <a href="/backup" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/backup' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>💾</span> Backup Data
+        </a>
+        {% endif %}
+
+        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider">Export</div>
+        <a href="/export/produk" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition">📥 Produk (.xlsx)</a>
+        <a href="/export/penjualan" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition">📥 Penjualan (.xlsx)</a>
+        <a href="/export/hutang" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition">📥 Hutang (.xlsx)</a>
+    </nav>
+</aside>
+
+<div class="lg:ml-64 flex flex-col min-h-screen">
+    <header class="bg-white shadow-sm border-b sticky top-0 z-30 no-print">
+        <div class="flex items-center justify-between px-4 py-3">
+            <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 rounded-lg hover:bg-gray-100">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+            </button>
+            <h2 class="text-lg font-semibold text-gray-800">{% block header %}Dashboard{% endblock %}</h2>
+            <div class="flex items-center gap-3">
+                <a href="/notifikasi" class="relative p-2 text-gray-500 hover:text-gray-700">
+                    🔔
+                    {% if notif_count is defined and notif_count > 0 %}
+                    <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">{{ notif_count }}</span>
+                    {% endif %}
+                </a>
+                <div class="flex items-center gap-2 text-sm">
+                    <span class="px-2 py-1 rounded-full text-xs font-medium {% if user.role == 'bos' %}bg-purple-100 text-purple-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+                        {{ user.role|upper }}
+                    </span>
+                    <span class="text-gray-600">{{ user.nama }}</span>
+                </div>
+                <a href="/logout" class="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs hover:bg-red-200">🚪 Keluar</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 p-4 md:p-6">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="bg-white border-t py-3 px-6 text-center text-sm text-gray-400 no-print">
+        Stok Toko Elektronik v2.0 — Built with ❤️ by Yamada
+    </footer>
+</div>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

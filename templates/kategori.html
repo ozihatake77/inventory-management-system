@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Kategori{% endblock %}
+{% block header %}🏷️ Kategori Produk{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-xl shadow-sm border p-5 mb-6">
+    <form method="post" action="/kategori/tambah" class="flex gap-2">
+        <input name="nama" required placeholder="Nama kategori baru..."
+               class="flex-1 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">➕ Tambah</button>
+    </form>
+</div>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for k in kategori %}
+    <div class="bg-white rounded-xl shadow-sm border p-5 flex justify-between items-center">
+        <div>
+            <h4 class="font-semibold text-gray-800">{{ k.nama }}</h4>
+            <p class="text-sm text-gray-500">{{ k.jumlah_produk }} produk</p>
+        </div>
+        <a href="/kategori/hapus/{{ k.id }}" onclick="return confirm('Hapus kategori ini?')"
+           class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">🗑️</a>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

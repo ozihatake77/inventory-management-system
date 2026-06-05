@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Laporan Keuntungan{% endblock %}
+{% block header %}📈 Laporan Keuntungan{% endblock %}
+
+{% block content %}
+<!-- Daily -->
+<div class="bg-white rounded-xl shadow-sm border overflow-hidden mb-6">
+    <div class="p-4 border-b flex justify-between items-center">
+        <h3 class="font-semibold text-gray-800">📅 Keuntungan Harian (Bulan Ini)</h3>
+        <a href="/export/keuntungan" class="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700">📥 Export Excel</a>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Tanggal</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Penjualan</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Keuntungan</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Transaksi</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for h in harian %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 font-medium">{{ h.tanggal }}</td>
+                    <td class="px-4 py-3 text-right text-blue-600 font-medium">{{ h.total_penjualan|rupiah }}</td>
+                    <td class="px-4 py-3 text-right text-green-600 font-medium">{{ h.total_keuntungan|rupiah }}</td>
+                    <td class="px-4 py-3 text-center">{{ h.jumlah_transaksi }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if not harian %}
+    <div class="text-center py-8 text-gray-400">Belum ada data bulan ini</div>
+    {% endif %}
+</div>
+
+<!-- Weekly -->
+<div class="bg-white rounded-xl shadow-sm border overflow-hidden mb-6">
+    <div class="p-4 border-b"><h3 class="font-semibold text-gray-800">📆 Keuntungan Mingguan (4 Minggu Terakhir)</h3></div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Periode</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Penjualan</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Keuntungan</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Transaksi</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for m in mingguan %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 font-medium">{{ m.minggu }}</td>
+                    <td class="px-4 py-3 text-right text-blue-600 font-medium">{{ m.total|rupiah }}</td>
+                    <td class="px-4 py-3 text-right text-green-600 font-medium">{{ m.keuntungan|rupiah }}</td>
+                    <td class="px-4 py-3 text-center">{{ m.transaksi }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Monthly -->
+<div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+    <div class="p-4 border-b"><h3 class="font-semibold text-gray-800">📊 Keuntungan Bulanan (6 Bulan Terakhir)</h3></div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Bulan</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Penjualan</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Keuntungan</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Transaksi</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for b in bulanan %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 font-medium">{{ b.bulan }}</td>
+                    <td class="px-4 py-3 text-right text-blue-600 font-medium">{{ b.total|rupiah }}</td>
+                    <td class="px-4 py-3 text-right text-green-600 font-medium">{{ b.keuntungan|rupiah }}</td>
+                    <td class="px-4 py-3 text-center">{{ b.transaksi }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

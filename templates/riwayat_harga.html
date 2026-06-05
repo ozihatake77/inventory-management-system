@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Riwayat Harga{% endblock %}
+{% block header %}📊 Riwayat Harga - {{ produk.nama }}{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-xl shadow-sm border p-5 mb-4">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div><p class="text-sm text-gray-500">Kode</p><p class="font-medium">{{ produk.kode }}</p></div>
+        <div><p class="text-sm text-gray-500">Harga Modal</p><p class="font-medium text-orange-600">{{ produk.harga_modal|rupiah }}</p></div>
+        <div><p class="text-sm text-gray-500">Harga Jual</p><p class="font-medium text-green-600">{{ produk.harga_jual|rupiah }}</p></div>
+        <div><p class="text-sm text-gray-500">Stok</p><p class="font-medium">{{ produk.stok }} {{ produk.satuan }}</p></div>
+    </div>
+</div>
+
+<div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Tanggal</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Modal Lama</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Modal Baru</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Jual Lama</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Jual Baru</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Oleh</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for r in riwayat %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3">{{ r.created_at|format_date }}</td>
+                    <td class="px-4 py-3 text-right">{{ r.harga_modal_lama|rupiah }}</td>
+                    <td class="px-4 py-3 text-right font-medium text-orange-600">{{ r.harga_modal_baru|rupiah }}</td>
+                    <td class="px-4 py-3 text-right">{{ r.harga_jual_lama|rupiah }}</td>
+                    <td class="px-4 py-3 text-right font-medium text-green-600">{{ r.harga_jual_baru|rupiah }}</td>
+                    <td class="px-4 py-3 text-gray-500">{{ r.user_nama or '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if not riwayat %}
+    <div class="text-center py-12 text-gray-400"><p class="text-4xl mb-2">📊</p><p>Belum ada perubahan harga</p></div>
+    {% endif %}
+</div>
+<a href="/produk" class="inline-block mt-4 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-300">← Kembali ke Produk</a>
+{% endblock %}

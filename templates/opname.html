@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Stok Opname{% endblock %}
+{% block header %}📋 Stok Opname{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-xl shadow-sm border p-5 mb-6">
+    <h3 class="font-semibold text-gray-800 mb-4">Input Stok Opname</h3>
+    <form method="post" action="/opname/simpan" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Produk</label>
+            <select name="produk_id" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                <option value="">Pilih produk...</option>
+                {% for p in produk %}
+                <option value="{{ p.id }}">{{ p.nama }} (sistem: {{ p.stok }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Stok Fisik (hitungan)</label>
+            <input name="stok_fisik" type="number" min="0" required placeholder="0"
+                   class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Keterangan</label>
+            <input name="keterangan" placeholder="Opname bulanan, dll"
+                   class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div class="flex items-end">
+            <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                📋 Simpan Opname
+            </button>
+        </div>
+    </form>
+</div>
+
+<div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+    <div class="p-4 border-b"><h3 class="font-semibold text-gray-800">Riwayat Stok Opname</h3></div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Tanggal</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Kode</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Produk</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Sistem</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Fisik</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Selisih</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Keterangan</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for o in riwayat %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 text-gray-500">{{ o.created_at|format_date }}</td>
+                    <td class="px-4 py-3 font-mono text-xs">{{ o.produk_kode }}</td>
+                    <td class="px-4 py-3 font-medium">{{ o.produk_nama }}</td>
+                    <td class="px-4 py-3 text-center">{{ o.stok_sistem }}</td>
+                    <td class="px-4 py-3 text-center font-medium">{{ o.stok_fisik }}</td>
+                    <td class="px-4 py-3 text-center font-medium {% if o.selisih < 0 %}text-red-600{% elif o.selisih > 0 %}text-green-600{% else %}text-gray-500{% endif %}">
+                        {% if o.selisih > 0 %}+{% endif %}{{ o.selisih }}
+                    </td>
+                    <td class="px-4 py-3 text-gray-500">{{ o.keterangan or '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if not riwayat %}
+    <div class="text-center py-12 text-gray-400"><p class="text-4xl mb-2">📋</p><p>Belum ada stok opname</p></div>
+    {% endif %}
+</div>
+{% endblock %}

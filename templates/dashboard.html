@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Stok Toko Elektronik{% endblock %}
+{% block header %}📊 Dashboard{% endblock %}
+
+{% block content %}
+<!-- Stats Cards -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+
+    <div class="bg-white rounded-xl shadow-sm border p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500">Penjualan Hari Ini</p>
+                <p class="text-2xl font-bold text-gray-800">{{ penjualan_hari_ini[0]|rupiah }}</p>
+                <p class="text-xs text-green-600 mt-1">💰 Untung: {{ penjualan_hari_ini[1]|rupiah }}</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-2xl">💵</div>
+        </div>
+        <p class="text-xs text-gray-400 mt-2">{{ penjualan_hari_ini[2] }} transaksi</p>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500">Penjualan Minggu Ini</p>
+                <p class="text-2xl font-bold text-gray-800">{{ penjualan_minggu[0]|rupiah }}</p>
+                <p class="text-xs text-green-600 mt-1">💰 Untung: {{ penjualan_minggu[1]|rupiah }}</p>
+            </div>
+            <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center text-2xl">📅</div>
+        </div>
+        <p class="text-xs text-gray-400 mt-2">{{ penjualan_minggu[2] }} transaksi</p>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500">Total Produk</p>
+                <p class="text-2xl font-bold text-gray-800">{{ total_produk }}</p>
+                <p class="text-xs text-gray-500 mt-1">📦 {{ total_stok }} item di gudang</p>
+            </div>
+            <div class="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center text-2xl">📱</div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500">Stok Menipis</p>
+                <p class="text-2xl font-bold {% if stok_menipis > 0 %}text-red-600{% else %}text-green-600{% endif %}">
+                    {{ stok_menipis }}
+                </p>
+                <p class="text-xs text-gray-500 mt-1">⚠️ Perlu restock</p>
+            </div>
+            <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center text-2xl">⚠️</div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+
+    <!-- Sales Chart -->
+    <div class="bg-white rounded-xl shadow-sm border p-5">
+        <h3 class="font-semibold text-gray-800 mb-4">📈 Penjualan 7 Hari Terakhir</h3>
+        <canvas id="salesChart" height="200"></canvas>
+    </div>
+
+    <!-- Top Products -->
+    <div class="bg-white rounded-xl shadow-sm border p-5">
+        <h3 class="font-semibold text-gray-800 mb-4">🏆 Produk Terlaris (Bulan Ini)</h3>
+        {% if top_produk %}
+        <div class="space-y-3">
+            {% for p in top_produk %}
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-sm font-bold text-blue-600">
+                        {{ loop.index }}
+                    </div>
+                    <div>
+                        <p class="font-medium text-sm text-gray-800">{{ p.nama }}</p>
+                        <p class="text-xs text-gray-500">{{ p.total_qty }} unit terjual</p>
+                    </div>
+                </div>
+                <p class="font-semibold text-sm text-green-600">{{ p.total_rp|rupiah }}</p>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-400 text-sm text-center py-8">Belum ada penjualan bulan ini</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Low Stock & Recent Transactions -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+    <!-- Low Stock Alert -->
+    <div class="bg-white rounded-xl shadow-sm border p-5">
+        <h3 class="font-semibold text-gray-800 mb-4">⚠️ Stok Menipis</h3>
+        {% if produk_menipis %}
+        <div class="space-y-2">
+            {% for p in produk_menipis %}
+            <div class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                <div>
+                    <p class="font-medium text-sm">{{ p.nama }}</p>
+                    <p class="text-xs text-gray-500">{{ p.kode }} • {{ p.kategori_nama or '-' }}</p>
+                </div>
+                <div class="text-right">
+                    <span class="px-2 py-1 rounded-full text-xs font-medium
+                        {% if p.stok == 0 %}bg-red-100 text-red-700
+                        {% elif p.stok <= 3 %}bg-orange-100 text-orange-700
+                        {% else %}bg-yellow-100 text-yellow-700{% endif %}">
+                        {{ p.stok }} {{ p.satuan }}
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-400 text-sm text-center py-8">✅ Semua stok aman</p>
+        {% endif %}
+    </div>
+
+    <!-- Recent Transactions -->
+    <div class="bg-white rounded-xl shadow-sm border p-5">
+        <h3 class="font-semibold text-gray-800 mb-4">🔄 Mutasi Terbaru</h3>
+        {% if mutasi_terbaru %}
+        <div class="space-y-2">
+            {% for m in mutasi_terbaru %}
+            <div class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                <div class="flex items-center gap-3">
+                    <span class="w-8 h-8 rounded-lg flex items-center justify-center text-sm
+                        {% if m.tipe == 'masuk' %}bg-green-100 text-green-600{% else %}bg-red-100 text-red-600{% endif %}">
+                        {% if m.tipe == 'masuk' %}📥{% else %}📤{% endif %}
+                    </span>
+                    <div>
+                        <p class="font-medium text-sm">{{ m.produk_nama }}</p>
+                        <p class="text-xs text-gray-500">{{ m.keterangan or '-' }}</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm font-medium {% if m.tipe == 'masuk' %}text-green-600{% else %}text-red-600{% endif %}">
+                        {% if m.tipe == 'masuk' %}+{% else %}-{% endif %}{{ m.jumlah }}
+                    </p>
+                    <p class="text-xs text-gray-400">{{ m.created_at|format_date }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-400 text-sm text-center py-8">Belum ada mutasi</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Monthly Summary -->
+<div class="mt-6 bg-white rounded-xl shadow-sm border p-5">
+    <h3 class="font-semibold text-gray-800 mb-4">📊 Ringkasan Bulan Ini</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="text-center p-4 bg-blue-50 rounded-xl">
+            <p class="text-sm text-gray-500">Total Penjualan</p>
+            <p class="text-2xl font-bold text-blue-600">{{ penjualan_bulan[0]|rupiah }}</p>
+        </div>
+        <div class="text-center p-4 bg-green-50 rounded-xl">
+            <p class="text-sm text-gray-500">Total Keuntungan</p>
+            <p class="text-2xl font-bold text-green-600">{{ penjualan_bulan[1]|rupiah }}</p>
+        </div>
+        <div class="text-center p-4 bg-purple-50 rounded-xl">
+            <p class="text-sm text-gray-500">Jumlah Transaksi</p>
+            <p class="text-2xl font-bold text-purple-600">{{ penjualan_bulan[2] }}</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const ctx = document.getElementById('salesChart').getContext('2d');
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: {{ chart_labels|tojson }},
+        datasets: [{
+            label: 'Penjualan',
+            data: {{ chart_sales|tojson }},
+            backgroundColor: 'rgba(37, 99, 235, 0.8)',
+            borderRadius: 6,
+        }, {
+            label: 'Keuntungan',
+            data: {{ chart_profit|tojson }},
+            backgroundColor: 'rgba(22, 163, 74, 0.8)',
+            borderRadius: 6,
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: { position: 'top' },
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    callback: v => 'Rp ' + v.toLocaleString('id-ID')
+                }
+            }
+        }
+    }
+});
+</script>
+{% endblock %}
