@@ -11,23 +11,41 @@
     <style>
         * { font-family: 'Inter', sans-serif; }
         [x-cloak] { display: none !important; }
+        html, body { height: 100%; margin: 0; overflow: hidden; }
         @media print {
             .no-print { display: none !important; }
             .print-only { display: block !important; }
         }
+        /* Custom scrollbar */
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+        .main-scroll::-webkit-scrollbar { width: 8px; }
+        .main-scroll::-webkit-scrollbar-track { background: #f3f4f6; }
+        .main-scroll::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+        .main-scroll::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen" x-data="{ sidebarOpen: false }">
+<body class="bg-gray-50 h-screen flex overflow-hidden" x-data="{ sidebarOpen: false }">
 
+<!-- Mobile overlay -->
 <div x-show="sidebarOpen" x-cloak class="fixed inset-0 z-40 bg-black/50 lg:hidden" @click="sidebarOpen = false"></div>
 
+<!-- SIDEBAR - Fixed, full height, own scroll -->
 <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
-       class="fixed inset-y-0 left-0 z-50 w-64 bg-gradient-to-b from-blue-900 to-blue-800 text-white transform transition-transform lg:translate-x-0 lg:static lg:z-auto overflow-y-auto">
-    <div class="p-4 border-b border-blue-700">
-        <h1 class="text-xl font-bold flex items-center gap-2"><span class="text-2xl">📦</span> Stok Toko</h1>
+       class="fixed inset-y-0 left-0 z-50 w-64 bg-gradient-to-b from-blue-900 to-blue-800 text-white transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:z-auto flex flex-col h-screen">
+    
+    <!-- Logo -->
+    <div class="flex-shrink-0 p-4 border-b border-blue-700">
+        <h1 class="text-xl font-bold flex items-center gap-2">
+            <span class="text-2xl">📦</span> Stok Toko
+        </h1>
         <p class="text-blue-300 text-xs mt-1">Elektronik Rumah Tangga</p>
     </div>
-    <nav class="p-3 space-y-1">
+
+    <!-- Nav - Scrollable -->
+    <nav class="flex-1 overflow-y-auto custom-scroll p-3 space-y-1">
         <a href="/" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if request.url.path == '/' %}bg-blue-700 font-medium{% endif %}">
             <span>📊</span> Dashboard
         </a>
@@ -41,7 +59,7 @@
             <span>👥</span> Pelanggan
         </a>
 
-        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider">Stok</div>
+        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Stok</div>
         <a href="/stok/masuk" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/stok/masuk' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>📥</span> Stok Masuk
         </a>
@@ -52,7 +70,7 @@
             <span>📋</span> Stok Opname
         </a>
 
-        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider">Keuangan</div>
+        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Keuangan</div>
         <a href="/penjualan" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/penjualan' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>💰</span> Penjualan
         </a>
@@ -64,7 +82,7 @@
         </a>
 
         {% if user and user.role == 'bos' %}
-        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider">Admin</div>
+        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Admin</div>
         <a href="/users" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/users' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>👤</span> Kelola User
         </a>
@@ -73,45 +91,65 @@
         </a>
         {% endif %}
 
-        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider">Export</div>
-        <a href="/export/produk" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition">📥 Produk (.xlsx)</a>
-        <a href="/export/penjualan" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition">📥 Penjualan (.xlsx)</a>
-        <a href="/export/hutang" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition">📥 Hutang (.xlsx)</a>
+        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Export</div>
+        <a href="/export/produk" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition">
+            <span>📥</span> Produk (.xlsx)
+        </a>
+        <a href="/export/penjualan" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition">
+            <span>📥</span> Penjualan (.xlsx)
+        </a>
+        <a href="/export/hutang" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition">
+            <span>📥</span> Hutang (.xlsx)
+        </a>
     </nav>
+
+    <!-- Sidebar Footer -->
+    <div class="flex-shrink-0 p-3 border-t border-blue-700 text-xs text-blue-400 text-center">
+        Stok Toko v2.0
+    </div>
 </aside>
 
-<div class="lg:ml-64 flex flex-col min-h-screen">
-    <header class="bg-white shadow-sm border-b sticky top-0 z-30 no-print">
-        <div class="flex items-center justify-between px-4 py-3">
-            <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 rounded-lg hover:bg-gray-100">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-                </svg>
-            </button>
-            <h2 class="text-lg font-semibold text-gray-800">{% block header %}Dashboard{% endblock %}</h2>
+<!-- MAIN CONTENT AREA -->
+<div class="flex-1 flex flex-col h-screen overflow-hidden">
+    
+    <!-- Header - Fixed top -->
+    <header class="flex-shrink-0 bg-white shadow-sm border-b z-30 no-print">
+        <div class="flex items-center justify-between px-4 lg:px-6 py-3">
             <div class="flex items-center gap-3">
-                <a href="/notifikasi" class="relative p-2 text-gray-500 hover:text-gray-700">
-                    🔔
+                <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 rounded-lg hover:bg-gray-100">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                </button>
+                <h2 class="text-lg font-semibold text-gray-800">{% block header %}Dashboard{% endblock %}</h2>
+            </div>
+            <div class="flex items-center gap-3">
+                <a href="/notifikasi" class="relative p-2 text-gray-500 hover:text-gray-700 transition">
+                    <span class="text-xl">🔔</span>
                     {% if notif_count is defined and notif_count > 0 %}
-                    <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">{{ notif_count }}</span>
+                    <span class="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">{{ notif_count }}</span>
                     {% endif %}
                 </a>
-                <div class="flex items-center gap-2 text-sm">
-                    <span class="px-2 py-1 rounded-full text-xs font-medium {% if user.role == 'bos' %}bg-purple-100 text-purple-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+                <div class="hidden sm:flex items-center gap-2 text-sm">
+                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold {% if user.role == 'bos' %}bg-purple-100 text-purple-700{% else %}bg-blue-100 text-blue-700{% endif %}">
                         {{ user.role|upper }}
                     </span>
-                    <span class="text-gray-600">{{ user.nama }}</span>
+                    <span class="text-gray-600 font-medium">{{ user.nama }}</span>
                 </div>
-                <a href="/logout" class="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs hover:bg-red-200">🚪 Keluar</a>
+                <a href="/logout" class="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 transition border border-red-200">
+                    🚪 Keluar
+                </a>
             </div>
         </div>
     </header>
 
-    <main class="flex-1 p-4 md:p-6">
+    <!-- Content - Scrollable -->
+    <main class="flex-1 overflow-y-auto main-scroll p-4 lg:p-6">
         {% block content %}{% endblock %}
     </main>
 
-    <footer class="bg-white border-t py-3 px-6 text-center text-sm text-gray-400 no-print">
+    <!-- Footer - Fixed bottom -->
+    <footer class="flex-shrink-0 bg-white border-t py-2 px-6 text-center text-xs text-gray-400 no-print">
         Stok Toko Elektronik v2.0 — Built with ❤️ by Yamada
     </footer>
 </div>
