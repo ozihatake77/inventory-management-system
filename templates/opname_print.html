@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Print Stok Opname #{{ session.id }} - Toko Ozi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            @page { margin: 1cm; }
+            .no-print { display: none !important; }
+            body { font-size: 11px; }
+        }
+    </style>
+</head>
+<body class="bg-white p-6 max-w-4xl mx-auto">
+    <!-- Header -->
+    <div class="text-center border-b-2 border-black pb-4 mb-4">
+        <h1 class="text-2xl font-bold">TOKO OZI ELEKTRONIK</h1>
+        <p class="text-sm text-gray-600">Jl. Contoh No. 123, Kota - Telp: 0812xxxx</p>
+        <h2 class="text-lg font-bold mt-2">
+            {% if mode == 'blank' %}FORM STOK OPNAME{% else %}HASIL STOK OPNAME{% endif %}
+        </h2>
+    </div>
+
+    <!-- Info -->
+    <div class="flex justify-between text-sm mb-4">
+        <div>
+            <p><strong>No. Sesi:</strong> #{{ session.id }}</p>
+            <p><strong>Tanggal:</strong> {{ session.tanggal }}</p>
+        </div>
+        <div class="text-right">
+            <p><strong>Petugas:</strong> {{ user_nama }}</p>
+            <p><strong>Status:</strong>
+                {% if session.status == 'draft' %}Draft{% elif session.status == 'selesai' %}Menunggu Approval{% elif session.status == 'disetujui' %}Disetujui{% elif session.status == 'ditolak' %}Ditolak{% endif %}
+            </p>
+        </div>
+    </div>
+
+    {% if session.catatan %}
+    <p class="text-sm mb-4"><strong>Catatan:</strong> {{ session.catatan }}</p>
+    {% endif %}
+
+    <!-- Table -->
+    <table class="w-full text-sm border-collapse border border-black">
+        <thead>
+            <tr class="bg-gray-100">
+                <th class="border border-black px-2 py-2 text-left">No</th>
+                <th class="border border-black px-2 py-2 text-left">Kategori</th>
+                <th class="border border-black px-2 py-2 text-left">Nama Barang</th>
+                <th class="border border-black px-2 py-2 text-center">Stok Sistem</th>
+                <th class="border border-black px-2 py-2 text-center">Stok Fisik</th>
+                <th class="border border-black px-2 py-2 text-center">Selisih</th>
+                <th class="border border-black px-2 py-2 text-left">Keterangan</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td class="border border-black px-2 py-1.5">{{ loop.index }}</td>
+                <td class="border border-black px-2 py-1.5">{{ item.kategori_nama or '-' }}</td>
+                <td class="border border-black px-2 py-1.5">{{ item.produk_nama }}</td>
+                <td class="border border-black px-2 py-1.5 text-center">{{ item.stok_sistem }}</td>
+                <td class="border border-black px-2 py-1.5 text-center">
+                    {% if mode == 'blank' %}
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    {% else %}
+                        {{ item.stok_fisik }}
+                    {% endif %}
+                </td>
+                <td class="border border-black px-2 py-1.5 text-center">
+                    {% if mode == 'blank' %}
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    {% else %}
+                        {% if item.selisih > 0 %}+{% endif %}{{ item.selisih }}
+                    {% endif %}
+                </td>
+                <td class="border border-black px-2 py-1.5">
+                    {% if mode == 'blank' %}
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    {% else %}
+                        {{ item.keterangan or '' }}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not items %}
+            <tr>
+                <td colspan="7" class="border border-black px-2 py-4 text-center text-gray-400">Tidak ada item</td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+
+    {% if mode == 'blank' %}
+    <!-- Extra blank rows for additional items -->
+    <table class="w-full text-sm border-collapse border border-black border-t-0">
+        <tbody>
+            {% for i in range(5) %}
+            <tr>
+                <td class="border border-black px-2 py-3">&nbsp;</td>
+                <td class="border border-black px-2 py-3"></td>
+                <td class="border border-black px-2 py-3"></td>
+                <td class="border border-black px-2 py-3"></td>
+                <td class="border border-black px-2 py-3"></td>
+                <td class="border border-black px-2 py-3"></td>
+                <td class="border border-black px-2 py-3"></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Summary -->
+    {% if mode == 'hasil' %}
+    <div class="mt-4 text-sm">
+        <p><strong>Total Item:</strong> {{ items|length }}</p>
+        <p><strong>Item Selisih:</strong> {{ items|selectattr('selisih')|list|length }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Footer Signatures -->
+    <div class="mt-8 grid grid-cols-2 gap-8">
+        <div class="text-center">
+            <p class="font-medium">Dihitung oleh:</p>
+            <div class="h-20"></div>
+            <p class="border-t border-black inline-block px-8 pt-1">{{ user_nama }}</p>
+            <p class="text-xs text-gray-500">Petugas Opname</p>
+        </div>
+        <div class="text-center">
+            <p class="font-medium">Diperiksa oleh:</p>
+            <div class="h-20"></div>
+            <p class="border-t border-black inline-block px-8 pt-1">&nbsp;</p>
+            <p class="text-xs text-gray-500">Bos / Manager</p>
+        </div>
+    </div>
+
+    <!-- Print button (hidden on print) -->
+    <div class="mt-8 text-center no-print">
+        <button onclick="window.print()" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-lg">
+            🖨️ PRINT
+        </button>
+        <a href="/opname/{{ session.id }}" class="ml-4 px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 border font-medium">
+            ← Kembali
+        </a>
+    </div>
+</body>
+</html>

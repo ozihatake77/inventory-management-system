@@ -219,9 +219,36 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
         );
+
+        CREATE TABLE IF NOT EXISTS opname_session (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tanggal DATE NOT NULL DEFAULT (DATE('now')),
+            status TEXT NOT NULL DEFAULT 'draft',
+            catatan TEXT DEFAULT '',
+            user_id INTEGER,
+            approved_by INTEGER,
+            approved_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS opname_item (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL,
+            produk_id INTEGER NOT NULL,
+            stok_sistem INTEGER NOT NULL,
+            stok_fisik INTEGER NOT NULL DEFAULT 0,
+            selisih INTEGER NOT NULL DEFAULT 0,
+            keterangan TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES opname_session(id) ON DELETE CASCADE,
+            FOREIGN KEY (produk_id) REFERENCES produk(id) ON DELETE CASCADE
+        );
         """)
 
-        # ── Migrations for existing DBs ────────────────────────────────
+        # ── Migrations for existing DBs
         for col in ['harga_bottom']:
             try: db.execute(f"ALTER TABLE produk ADD COLUMN {col} REAL DEFAULT 0")
             except: pass
@@ -233,6 +260,8 @@ def init_db():
             try: db.execute(f"ALTER TABLE penjualan ADD COLUMN {col} TEXT DEFAULT ''")
             except: pass
         try: db.execute("ALTER TABLE penjualan ADD COLUMN approval_id INTEGER")
+        except: pass
+        try: db.execute("ALTER TABLE stok_opname ADD COLUMN session_id INTEGER")
         except: pass
         # Make hutang.pelanggan_id nullable (recreate table)
         try:
@@ -1205,16 +1234,244 @@ def hutang_bayar(request: Request, hutang_id: int = Form(...), jumlah: float = F
     return RedirectResponse("/hutang", status_code=303)
 
 # ═══════════════════════════════════════════════════════════════════════
-# ROUTES: STOK OPNAME
+# ROUTES: STOK OPNAME (Full Version - Session-based)
 # ═══════════════════════════════════════════════════════════════════════
+
 @app.get("/opname", response_class=HTMLResponse)
 @require_auth
-def opname_page(request: Request, tgl_dari: str = "", tgl_sampai: str = ""):
+def opname_list(request: Request, status: str = ""):
+    """Halaman utama: daftar sesi opname"""
     with get_db() as db:
-        produk = db.execute("""
-            SELECT p.*, k.nama as kategori_nama FROM produk p
-            LEFT JOIN kategori k ON p.kategori_id = k.id ORDER BY p.nama
+        user = request.state.user
+        where = ["1=1"]
+        params = []
+
+        if status:
+            where.append("s.status = ?")
+            params.append(status)
+
+        sessions = db.execute(f"""
+            SELECT s.*, u.nama as user_nama,
+                   a.nama as approver_nama,
+                   (SELECT COUNT(*) FROM opname_item WHERE session_id = s.id) as total_item,
+                   (SELECT COUNT(*) FROM opname_item WHERE session_id = s.id AND selisih != 0) as total_selisih
+            FROM opname_session s
+            LEFT JOIN users u ON s.user_id = u.id
+            LEFT JOIN users a ON s.approved_by = a.id
+            WHERE {" AND ".join(where)}
+            ORDER BY s.created_at DESC
+        """, params).fetchall()
+
+        kategori_list = db.execute("SELECT * FROM kategori ORDER BY nama").fetchall()
+
+        stats_draft = db.execute("SELECT COUNT(*) FROM opname_session WHERE status='draft'").fetchone()[0]
+        stats_selesai = db.execute("SELECT COUNT(*) FROM opname_session WHERE status='selesai'").fetchone()[0]
+        stats_disetujui = db.execute("SELECT COUNT(*) FROM opname_session WHERE status='disetujui'").fetchone()[0]
+        stats_ditolak = db.execute("SELECT COUNT(*) FROM opname_session WHERE status='ditolak'").fetchone()[0]
+
+    return templates.TemplateResponse(request, "opname.html", {
+        "request": request, "user": user, "sessions": sessions,
+        "kategori_list": kategori_list, "filter_status": status,
+        "stats_draft": stats_draft, "stats_selesai": stats_selesai,
+        "stats_disetujui": stats_disetujui, "stats_ditolak": stats_ditolak,
+    })
+
+@app.post("/opname/baru")
+@require_auth
+def opname_buat_baru(request: Request, catatan: str = Form(""), kategori_id: str = Form("")):
+    """Buat sesi opname baru"""
+    with get_db() as db:
+        user = request.state.user
+        cursor = db.execute(
+            "INSERT INTO opname_session (tanggal, status, catatan, user_id) VALUES (DATE('now'), 'draft', ?, ?)",
+            (catatan, user["id"])
+        )
+        session_id = cursor.lastrowid
+
+        if kategori_id and kategori_id != "":
+            produk_list = db.execute("SELECT * FROM produk WHERE kategori_id = ? ORDER BY nama", (kategori_id,)).fetchall()
+        else:
+            produk_list = db.execute("SELECT * FROM produk ORDER BY nama").fetchall()
+
+        for p in produk_list:
+            db.execute("""
+                INSERT INTO opname_item (session_id, produk_id, stok_sistem, stok_fisik, selisih)
+                VALUES (?, ?, ?, 0, 0)
+            """, (session_id, p["id"], p["stok"]))
+
+        log_audit(db, user, "Membuat Stok Opname Baru", "stok_opname",
+                  f"Session #{session_id} | {len(produk_list)} item | {catatan or 'Tanpa catatan'}",
+                  request.client.host if request.client else "")
+
+    return RedirectResponse(f"/opname/{session_id}", status_code=303)
+
+@app.get("/opname/{session_id}", response_class=HTMLResponse)
+@require_auth
+def opname_detail(request: Request, session_id: int, kategori: str = ""):
+    """Halaman input stok fisik per item"""
+    with get_db() as db:
+        user = request.state.user
+        session = db.execute("SELECT * FROM opname_session WHERE id = ?", (session_id,)).fetchone()
+        if not session:
+            return RedirectResponse("/opname", status_code=303)
+
+        where = ["oi.session_id = ?"]
+        params = [session_id]
+        if kategori:
+            where.append("k.nama = ?")
+            params.append(kategori)
+
+        items = db.execute(f"""
+            SELECT oi.*, p.nama as produk_nama, p.kode as produk_kode, k.nama as kategori_nama
+            FROM opname_item oi
+            JOIN produk p ON oi.produk_id = p.id
+            LEFT JOIN kategori k ON p.kategori_id = k.id
+            WHERE {" AND ".join(where)}
+            ORDER BY k.nama, p.nama
+        """, params).fetchall()
+
+        kategori_list = db.execute("""
+            SELECT DISTINCT k.nama FROM kategori k
+            JOIN produk p ON k.id = p.kategori_id
+            ORDER BY k.nama
         """).fetchall()
+
+        total_item = db.execute("SELECT COUNT(*) FROM opname_item WHERE session_id = ?", (session_id,)).fetchone()[0]
+        sudah_diisi = db.execute("SELECT COUNT(*) FROM opname_item WHERE session_id = ? AND stok_fisik > 0", (session_id,)).fetchone()[0]
+        total_selisih = db.execute("SELECT COUNT(*) FROM opname_item WHERE session_id = ? AND selisih != 0", (session_id,)).fetchone()[0]
+
+    return templates.TemplateResponse(request, "opname_detail.html", {
+        "request": request, "user": user, "session": session, "items": items,
+        "kategori_list": kategori_list, "filter_kategori": kategori,
+        "total_item": total_item, "sudah_diisi": sudah_diisi, "total_selisih": total_selisih,
+    })
+
+@app.post("/opname/item/simpan")
+@require_auth
+def opname_simpan_single(request: Request, session_id: int = Form(...), produk_id: int = Form(...),
+                          stok_fisik: int = Form(0), keterangan: str = Form("")):
+    """Simpan satu item opname (per-baris)"""
+    with get_db() as db:
+        user = request.state.user
+        session = db.execute("SELECT * FROM opname_session WHERE id = ?", (session_id,)).fetchone()
+        if not session or session["status"] not in ("draft",):
+            return RedirectResponse("/opname", status_code=303)
+
+        item = db.execute("SELECT * FROM opname_item WHERE session_id = ? AND produk_id = ?",
+                          (session_id, produk_id)).fetchone()
+        if not item:
+            return RedirectResponse(f"/opname/{session_id}", status_code=303)
+
+        selisih = stok_fisik - item["stok_sistem"]
+
+        db.execute("""
+            UPDATE opname_item SET stok_fisik = ?, selisih = ?, keterangan = ? WHERE id = ?
+        """, (stok_fisik, selisih, keterangan, item["id"]))
+
+        db.execute("UPDATE opname_session SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (session_id,))
+
+        log_audit(db, user, "Input Stok Opname", "stok_opname",
+                  f"Session #{session_id} | Produk #{produk_id} | Sistem: {item['stok_sistem']} → Fisik: {stok_fisik} | Selisih: {selisih}",
+                  request.client.host if request.client else "")
+
+    return RedirectResponse(f"/opname/{session_id}", status_code=303)
+
+@app.post("/opname/{session_id}/selesai")
+@require_auth
+def opname_selesai(request: Request, session_id: int):
+    """OG menandai opname selesai"""
+    with get_db() as db:
+        user = request.state.user
+        session = db.execute("SELECT * FROM opname_session WHERE id = ?", (session_id,)).fetchone()
+        if not session or session["status"] != "draft":
+            return RedirectResponse("/opname", status_code=303)
+
+        db.execute("UPDATE opname_session SET status = 'selesai', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (session_id,))
+
+        total_selisih = db.execute("SELECT COUNT(*) FROM opname_item WHERE session_id = ? AND selisih != 0", (session_id,)).fetchone()[0]
+        log_audit(db, user, "Stok Opname Selesai", "stok_opname",
+                  f"Session #{session_id} | {total_selisih} item selisih | Menunggu approval Bos",
+                  request.client.host if request.client else "")
+
+    return RedirectResponse("/opname", status_code=303)
+
+@app.post("/opname/{session_id}/approve")
+@require_bos
+def opname_approve(request: Request, session_id: int, aksi: str = Form("approve")):
+    """Bos approve/reject opname → kalau approve, auto-koreksi stok"""
+    with get_db() as db:
+        user = request.state.user
+        session = db.execute("SELECT * FROM opname_session WHERE id = ?", (session_id,)).fetchone()
+        if not session or session["status"] != "selesai":
+            return RedirectResponse("/opname", status_code=303)
+
+        if aksi == "approve":
+            items = db.execute("""
+                SELECT oi.*, p.nama as produk_nama FROM opname_item oi
+                JOIN produk p ON oi.produk_id = p.id WHERE oi.session_id = ?
+            """, (session_id,)).fetchall()
+            koreksi_count = 0
+            for item in items:
+                if item["selisih"] != 0:
+                    db.execute("UPDATE produk SET stok = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                              (item["stok_fisik"], item["produk_id"]))
+                    koreksi_count += 1
+
+                    # Also log to stok_opname for history
+                    db.execute("""
+                        INSERT INTO stok_opname (produk_id, stok_sistem, stok_fisik, selisih, user_id, keterangan, session_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, (item["produk_id"], item["stok_sistem"], item["stok_fisik"], item["selisih"],
+                          session["user_id"], item["keterangan"], session_id))
+
+            db.execute("""
+                UPDATE opname_session SET status = 'disetujui', approved_by = ?, approved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+            """, (user["id"], session_id))
+
+            log_audit(db, user, "Stok Opname Disetujui", "stok_opname",
+                      f"Session #{session_id} | {koreksi_count} produk dikoreksi",
+                      request.client.host if request.client else "")
+        else:
+            db.execute("""
+                UPDATE opname_session SET status = 'ditolak', approved_by = ?, approved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+            """, (user["id"], session_id))
+
+            log_audit(db, user, "Stok Opname Ditolak", "stok_opname",
+                      f"Session #{session_id}",
+                      request.client.host if request.client else "")
+
+    return RedirectResponse("/opname", status_code=303)
+
+@app.get("/opname/{session_id}/print", response_class=HTMLResponse)
+@require_auth
+def opname_print(request: Request, session_id: int, mode: str = "blank"):
+    """Print view: blank (untuk cek manual) atau hasil (sudah diisi)"""
+    with get_db() as db:
+        session = db.execute("SELECT * FROM opname_session WHERE id = ?", (session_id,)).fetchone()
+        if not session:
+            return RedirectResponse("/opname", status_code=303)
+
+        items = db.execute("""
+            SELECT oi.*, p.nama as produk_nama, p.kode as produk_kode, k.nama as kategori_nama
+            FROM opname_item oi
+            JOIN produk p ON oi.produk_id = p.id
+            LEFT JOIN kategori k ON p.kategori_id = k.id
+            ORDER BY k.nama, p.nama
+        """).fetchall()
+
+        user_info = db.execute("SELECT nama FROM users WHERE id = ?", (session["user_id"],)).fetchone()
+
+    return templates.TemplateResponse(request, "opname_print.html", {
+        "request": request, "user": request.state.user, "session": session,
+        "items": items, "mode": mode, "user_nama": user_info["nama"] if user_info else "-",
+    })
+
+@app.get("/opname/riwayat", response_class=HTMLResponse)
+@require_auth
+def opname_riwayat(request: Request, tgl_dari: str = "", tgl_sampai: str = ""):
+    """Riwayat semua stok opname"""
+    with get_db() as db:
         where = "1=1"
         params = []
         if tgl_dari:
@@ -1227,26 +1484,12 @@ def opname_page(request: Request, tgl_dari: str = "", tgl_sampai: str = ""):
             SELECT o.*, p.nama as produk_nama, p.kode as produk_kode, u.nama as user_nama
             FROM stok_opname o JOIN produk p ON o.produk_id = p.id
             LEFT JOIN users u ON o.user_id = u.id
-            WHERE {where} ORDER BY o.created_at DESC LIMIT 50
+            WHERE {where} ORDER BY o.created_at DESC LIMIT 100
         """, params).fetchall()
-    return templates.TemplateResponse(request, "opname.html", {
-        "request": request, "user": request.state.user, "produk": produk, "riwayat": riwayat,
+    return templates.TemplateResponse(request, "opname_riwayat.html", {
+        "request": request, "user": request.state.user, "riwayat": riwayat,
         "tgl_dari": tgl_dari, "tgl_sampai": tgl_sampai,
     })
-
-@app.post("/opname/simpan")
-@require_auth
-def opname_simpan(request: Request, produk_id: int = Form(...), stok_fisik: int = Form(...),
-                  keterangan: str = Form("")):
-    with get_db() as db:
-        produk = db.execute("SELECT * FROM produk WHERE id = ?", (produk_id,)).fetchone()
-        selisih = stok_fisik - produk["stok"]
-        db.execute("""
-            INSERT INTO stok_opname (produk_id, stok_sistem, stok_fisik, selisih, user_id, keterangan)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (produk_id, produk["stok"], stok_fisik, selisih, request.state.user["id"], keterangan))
-        db.execute("UPDATE produk SET stok = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (stok_fisik, produk_id))
-    return RedirectResponse("/opname", status_code=303)
 
 # ═══════════════════════════════════════════════════════════════════════
 # ROUTES: LAPORAN

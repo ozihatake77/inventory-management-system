@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Riwayat Stok Opname{% endblock %}
+{% block header %}📜 Riwayat Stok Opname{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+    <div class="p-4 border-b flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <h3 class="font-semibold text-gray-800">📜 Riwayat Koreksi Stok</h3>
+        <div class="flex items-center gap-2">
+            <form method="get" class="flex items-center gap-2">
+                <label class="text-sm text-gray-600">📅 Dari:</label>
+                <input type="date" name="tgl_dari" value="{{ tgl_dari }}" class="px-2 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                <label class="text-sm text-gray-600">Sampai:</label>
+                <input type="date" name="tgl_sampai" value="{{ tgl_sampai }}" class="px-2 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Filter</button>
+                <a href="/opname/riwayat" class="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200 border">Reset</a>
+            </form>
+            <a href="/opname" class="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 border">← Kembali</a>
+        </div>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Tanggal</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Kode</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Produk</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Sistem</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Fisik</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Selisih</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Petugas</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Keterangan</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for o in riwayat %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 text-gray-500">{{ o.created_at|format_date }}</td>
+                    <td class="px-4 py-3 font-mono text-xs">{{ o.produk_kode }}</td>
+                    <td class="px-4 py-3 font-medium">{{ o.produk_nama }}</td>
+                    <td class="px-4 py-3 text-center">{{ o.stok_sistem }}</td>
+                    <td class="px-4 py-3 text-center font-medium">{{ o.stok_fisik }}</td>
+                    <td class="px-4 py-3 text-center font-medium {% if o.selisih < 0 %}text-red-600{% elif o.selisih > 0 %}text-green-600{% else %}text-gray-500{% endif %}">
+                        {% if o.selisih > 0 %}+{% endif %}{{ o.selisih }}
+                    </td>
+                    <td class="px-4 py-3 text-gray-500">{{ o.user_nama or '-' }}</td>
+                    <td class="px-4 py-3 text-gray-500">{{ o.keterangan or '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if not riwayat %}
+    <div class="text-center py-12 text-gray-400">
+        <p class="text-4xl mb-2">📜</p>
+        <p>Belum ada riwayat stok opname</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

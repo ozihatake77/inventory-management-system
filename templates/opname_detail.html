@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% block title %}Opname #{{ session.id }}{% endblock %}
+{% block header %}📋 Stok Opname #{{ session.id }}{% endblock %}
+
+{% block content %}
+<!-- Session Info Bar -->
+<div class="bg-white rounded-xl shadow-sm border overflow-hidden mb-6">
+    <div class="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div>
+            <div class="flex items-center gap-2 mb-1">
+                <h3 class="font-bold text-gray-800">Opname #{{ session.id }}</h3>
+                {% if session.status == 'draft' %}
+                    <span class="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">📝 Draft</span>
+                {% elif session.status == 'selesai' %}
+                    <span class="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">⏳ Menunggu Approval</span>
+                {% elif session.status == 'disetujui' %}
+                    <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">✅ Disetujui</span>
+                {% elif session.status == 'ditolak' %}
+                    <span class="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">❌ Ditolak</span>
+                {% endif %}
+            </div>
+            <div class="text-sm text-gray-500 flex items-center gap-3">
+                <span>📅 {{ session.tanggal }}</span>
+                <span>👤 {{ user.nama }}</span>
+                {% if session.catatan %}
+                <span>💬 {{ session.catatan }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+            <!-- Progress -->
+            <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border text-sm">
+                <span>📦 {{ total_item }} item</span>
+                <span class="text-gray-400">|</span>
+                <span class="text-green-600">✓ {{ sudah_diisi }} dihitung</span>
+                {% if total_selisih > 0 %}
+                <span class="text-gray-400">|</span>
+                <span class="text-red-600">⚠️ {{ total_selisih }} selisih</span>
+                {% endif %}
+            </div>
+
+            {% if session.status == 'draft' %}
+            <!-- Print -->
+            <div class="relative group">
+                <button class="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 border">🖨️ Print</button>
+                <div class="hidden group-hover:block absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border z-10 min-w-[160px]">
+                    <a href="/opname/{{ session.id }}/print?mode=blank" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">📋 Print Kosong (Cek Manual)</a>
+                    <a href="/opname/{{ session.id }}/print?mode=hasil" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">📊 Print Hasil</a>
+                </div>
+            </div>
+            <!-- Selesai -->
+            <form method="post" action="/opname/{{ session.id }}/selesai" class="inline" onsubmit="return confirm('Tandai opname selesai & kirim ke Bos untuk approval?\nPastikan semua stok sudah diinput!')">
+                <button type="submit" class="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 font-medium">
+                    ✅ Selesai & Minta Approval
+                </button>
+            </form>
+            {% elif session.status == 'selesai' and user.role == 'bos' %}
+            <a href="/opname/{{ session.id }}/print?mode=hasil" class="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 border">🖨️ Print</a>
+            <form method="post" action="/opname/{{ session.id }}/approve" class="inline">
+                <input type="hidden" name="aksi" value="approve">
+                <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 font-medium" onclick="return confirm('Approve opname ini? Stok akan dikoreksi otomatis!')">
+                    ✅ Approve
+                </button>
+            </form>
+            <form method="post" action="/opname/{{ session.id }}/approve" class="inline">
+                <input type="hidden" name="aksi" value="reject">
+                <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 font-medium">❌ Tolak</button>
+            </form>
+            {% elif session.status in ('disetujui', 'ditolak') %}
+            <a href="/opname/{{ session.id }}/print?mode=hasil" class="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 border">🖨️ Print Hasil</a>
+            {% endif %}
+
+            <a href="/opname" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 border">← Kembali</a>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Kategori -->
+{% if kategori_list %}
+<div class="mb-4 flex items-center gap-2 flex-wrap">
+    <span class="text-sm text-gray-500 font-medium">Filter:</span>
+    <a href="/opname/{{ session.id }}" class="px-3 py-1 rounded-lg text-sm border {% if not filter_kategori %}bg-blue-600 text-white border-blue-600{% else %}bg-white text-gray-600 hover:bg-gray-50{% endif %}">Semua</a>
+    {% for k in kategori_list %}
+    <a href="/opname/{{ session.id }}?kategori={{ k.nama }}" class="px-3 py-1 rounded-lg text-sm border {% if filter_kategori == k.nama %}bg-blue-600 text-white border-blue-600{% else %}bg-white text-gray-600 hover:bg-gray-50{% endif %}">{{ k.nama }}</a>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Item Table -->
+<div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">No</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Kategori</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Nama Barang</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Stok Sistem</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Stok Fisik</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Selisih</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Keterangan</th>
+                    {% if session.status == 'draft' %}
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Aksi</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for item in items %}
+                <tr class="hover:bg-gray-50 {% if item.selisih != 0 %}bg-red-50/50{% endif %}" id="row_{{ item.produk_id }}">
+                    <td class="px-4 py-3 text-gray-500">{{ loop.index }}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">{{ item.kategori_nama or '-' }}</span>
+                    </td>
+                    <td class="px-4 py-3 font-medium text-gray-800">{{ item.produk_nama }}</td>
+                    <td class="px-4 py-3 text-center font-semibold text-blue-600">{{ item.stok_sistem }}</td>
+                    {% if session.status == 'draft' %}
+                    <td class="px-4 py-3 text-center">
+                        <input type="number" id="fisik_{{ item.produk_id }}" name="stok_fisik" min="0" value="{{ item.stok_fisik if item.stok_fisik > 0 else '' }}" placeholder="-"
+                               class="w-20 px-2 py-1 border rounded text-center text-sm focus:ring-2 focus:ring-blue-500"
+                               onchange="hitungSelisih({{ item.produk_id }}, {{ item.stok_sistem }})">
+                    </td>
+                    <td class="px-4 py-3 text-center font-medium" id="selisih_{{ item.produk_id }}">
+                        {% if item.stok_fisik > 0 %}
+                            <span class="{% if item.selisih < 0 %}text-red-600{% elif item.selisih > 0 %}text-green-600{% else %}text-gray-500{% endif %}">
+                                {% if item.selisih > 0 %}+{% endif %}{{ item.selisih }}
+                            </span>
+                        {% else %}
+                            <span class="text-gray-400">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        <input type="text" id="ket_{{ item.produk_id }}" name="keterangan" value="{{ item.keterangan or '' }}" placeholder=""
+                               class="w-full px-2 py-1 border rounded text-sm focus:ring-2 focus:ring-blue-500">
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        <button onclick="simpanItem({{ session.id }}, {{ item.produk_id }}, {{ item.stok_sistem }})"
+                                class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 font-medium"
+                                id="btn_{{ item.produk_id }}">
+                            💾
+                        </button>
+                    </td>
+                    {% else %}
+                    <td class="px-4 py-3 text-center font-medium">{{ item.stok_fisik }}</td>
+                    <td class="px-4 py-3 text-center font-medium {% if item.selisih < 0 %}text-red-600{% elif item.selisih > 0 %}text-green-600{% else %}text-gray-500{% endif %}">
+                        {% if item.selisih > 0 %}+{% endif %}{{ item.selisih }}
+                    </td>
+                    <td class="px-4 py-3 text-gray-500">{{ item.keterangan or '-' }}</td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if not items %}
+    <div class="text-center py-12 text-gray-400">
+        <p class="text-4xl mb-2">📦</p>
+        <p>Tidak ada item dalam sesi ini</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Toast notification -->
+<div id="toast" class="hidden fixed bottom-4 right-4 bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg z-50 transition-all transform translate-y-2 opacity-0">
+    <span id="toastMsg">Tersimpan!</span>
+</div>
+
+<script>
+function hitungSelisih(produkId, stokSistem) {
+    const fisikInput = document.getElementById(`fisik_${produkId}`);
+    const selisihCell = document.getElementById(`selisih_${produkId}`);
+    const stokFisik = parseInt(fisikInput.value) || 0;
+    const selisih = stokFisik - stokSistem;
+
+    if (fisikInput.value === '') {
+        selisihCell.innerHTML = '<span class="text-gray-400">-</span>';
+    } else {
+        const color = selisih < 0 ? 'text-red-600' : selisih > 0 ? 'text-green-600' : 'text-gray-500';
+        selisihCell.innerHTML = `<span class="${color} font-medium">${selisih > 0 ? '+' : ''}${selisih}</span>`;
+    }
+
+    // Highlight row if selisih
+    const row = document.getElementById(`row_${produkId}`);
+    if (selisih !== 0 && fisikInput.value !== '') {
+        row.classList.add('bg-red-50/50');
+    } else {
+        row.classList.remove('bg-red-50/50');
+    }
+}
+
+function simpanItem(sessionId, produkId, stokSistem) {
+    const fisikInput = document.getElementById(`fisik_${produkId}`);
+    const ketInput = document.getElementById(`ket_${produkId}`);
+    const btn = document.getElementById(`btn_${produkId}`);
+
+    if (!fisikInput.value && fisikInput.value !== '0') {
+        fisikInput.focus();
+        fisikInput.classList.add('border-red-500');
+        setTimeout(() => fisikInput.classList.remove('border-red-500'), 2000);
+        return;
+    }
+
+    // Disable button briefly
+    btn.disabled = true;
+    btn.textContent = '⏳';
+
+    // Submit via fetch
+    const formData = new FormData();
+    formData.append('session_id', sessionId);
+    formData.append('produk_id', produkId);
+    formData.append('stok_fisik', fisikInput.value);
+    formData.append('keterangan', ketInput.value);
+
+    fetch('/opname/item/simpan', {
+        method: 'POST',
+        body: formData,
+        redirect: 'follow'
+    }).then(response => {
+        if (response.ok || response.redirected) {
+            showToast(`✓ ${produkId ? 'Tersimpan' : 'Gagal'}`);
+            btn.textContent = '✅';
+            setTimeout(() => { btn.textContent = '💾'; btn.disabled = false; }, 1500);
+        }
+    }).catch(() => {
+        // Fallback: form submit
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/opname/item/simpan';
+
+        const fields = {session_id: sessionId, produk_id: produkId, stok_fisik: fisikInput.value, keterangan: ketInput.value};
+        for (const [k, v] of Object.entries(fields)) {
+            const inp = document.createElement('input');
+            inp.type = 'hidden'; inp.name = k; inp.value = v;
+            form.appendChild(inp);
+        }
+        document.body.appendChild(form);
+        form.submit();
+    });
+}
+
+function showToast(msg) {
+    const toast = document.getElementById('toast');
+    document.getElementById('toastMsg').textContent = msg;
+    toast.classList.remove('hidden');
+    setTimeout(() => { toast.classList.remove('translate-y-2', 'opacity-0'); }, 50);
+    setTimeout(() => { toast.classList.add('translate-y-2', 'opacity-0'); setTimeout(() => toast.classList.add('hidden'), 300); }, 2000);
+}
+</script>
+{% endblock %}

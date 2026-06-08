@@ -3,183 +3,179 @@
 {% block header %}📋 Stok Opname{% endblock %}
 
 {% block content %}
-<!-- Stok Rincian View -->
+<!-- Stats Cards -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center text-lg">📝</div>
+            <div>
+                <p class="text-xs text-gray-500">Draft</p>
+                <p class="text-xl font-bold text-yellow-600">{{ stats_draft }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-lg">⏳</div>
+            <div>
+                <p class="text-xs text-gray-500">Menunggu</p>
+                <p class="text-xl font-bold text-blue-600">{{ stats_selesai }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center text-lg">✅</div>
+            <div>
+                <p class="text-xs text-gray-500">Disetujui</p>
+                <p class="text-xl font-bold text-green-600">{{ stats_disetujui }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center text-lg">❌</div>
+            <div>
+                <p class="text-xs text-gray-500">Ditolak</p>
+                <p class="text-xl font-bold text-red-600">{{ stats_ditolak }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Action Bar -->
 <div class="bg-white rounded-xl shadow-sm border overflow-hidden mb-6">
-    <div class="p-4 border-b flex items-center justify-between">
-        <h3 class="font-semibold text-gray-800">📋 Rincian Stok Saat Ini</h3>
-        <div class="flex items-center gap-2">
-            <button onclick="window.print()" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 font-medium">
-                🖨️ Print Daftar Stok
+    <div class="p-4 border-b flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <h3 class="font-semibold text-gray-800">📋 Daftar Sesi Opname</h3>
+        <div class="flex items-center gap-2 flex-wrap">
+            <!-- Filter Status -->
+            <div class="flex items-center gap-1">
+                <a href="/opname" class="px-3 py-1.5 rounded-lg text-sm font-medium {% if not filter_status %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">Semua</a>
+                <a href="/opname?status=draft" class="px-3 py-1.5 rounded-lg text-sm font-medium {% if filter_status == 'draft' %}bg-yellow-500 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">Draft</a>
+                <a href="/opname?status=selesai" class="px-3 py-1.5 rounded-lg text-sm font-medium {% if filter_status == 'selesai' %}bg-blue-500 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">Menunggu</a>
+                <a href="/opname?status=disetujui" class="px-3 py-1.5 rounded-lg text-sm font-medium {% if filter_status == 'disetujui' %}bg-green-500 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">Disetujui</a>
+            </div>
+            <!-- Tombol Baru -->
+            <button onclick="document.getElementById('modalBaru').classList.remove('hidden')" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 font-medium">
+                ➕ Opname Baru
             </button>
-            <span class="text-sm text-gray-500">{{ produk|length }} item</span>
+            <a href="/opname/riwayat" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 border font-medium">
+                📜 Riwayat
+            </a>
         </div>
     </div>
-    <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead class="bg-gray-50 border-b">
-                <tr>
-                    <th class="px-4 py-3 text-left font-medium text-gray-600">No</th>
-                    <th class="px-4 py-3 text-left font-medium text-gray-600">Kategori</th>
-                    <th class="px-4 py-3 text-left font-medium text-gray-600">Nama Barang</th>
-                    <th class="px-4 py-3 text-center font-medium text-gray-600">Stok Sistem</th>
-                    <th class="px-4 py-3 text-center font-medium text-gray-600">Stok Fisik</th>
-                    <th class="px-4 py-3 text-center font-medium text-gray-600">Selisih</th>
-                    <th class="px-4 py-3 text-left font-medium text-gray-600">Keterangan</th>
-                    <th class="px-4 py-3 text-center font-medium text-gray-600">Aksi</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-                {% for p in produk %}
-                <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-3 text-gray-500">{{ loop.index }}</td>
-                    <td class="px-4 py-3">
-                        <span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">{{ p.kategori_nama or '-' }}</span>
-                    </td>
-                    <td class="px-4 py-3 font-medium text-gray-800">{{ p.nama }}</td>
-                    <td class="px-4 py-3 text-center font-semibold text-blue-600">{{ p.stok }}</td>
-                    <td class="px-4 py-3 text-center">
-                        <input type="number" name="stok_fisik_{{ p.id }}" min="0" value="" placeholder="-"
-                               class="w-20 px-2 py-1 border rounded text-center text-sm focus:ring-2 focus:ring-blue-500">
-                    </td>
-                    <td class="px-4 py-3 text-center text-gray-400" id="selisih_{{ p.id }}">-</td>
-                    <td class="px-4 py-3">
-                        <input type="text" name="keterangan_{{ p.id }}" placeholder=""
-                               class="w-full px-2 py-1 border rounded text-sm focus:ring-2 focus:ring-blue-500">
-                    </td>
-                    <td class="px-4 py-3 text-center">
-                        <button onclick="simpanItem({{ p.id }}, {{ p.stok }})" 
-                                class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">
-                            💾 Simpan
-                        </button>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% if not produk %}
-    <div class="text-center py-12 text-gray-400">
-        <p class="text-4xl mb-2">📦</p>
-        <p>Belum ada produk</p>
-    </div>
-    {% endif %}
-</div>
 
-<!-- Riwayat Opname -->
-<div class="bg-white rounded-xl shadow-sm border overflow-hidden">
-    <div class="p-4 border-b">
+    <!-- Session Cards -->
+    {% for s in sessions %}
+    <div class="p-4 border-b hover:bg-gray-50 transition-colors">
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <h3 class="font-semibold text-gray-800">Riwayat Stok Opname</h3>
-            <form method="get" action="/opname" class="flex items-center gap-2">
-                <label class="text-sm text-gray-600">📅 Dari:</label>
-                <input type="date" name="tgl_dari" value="{{ tgl_dari }}"
-                       class="px-2 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                <label class="text-sm text-gray-600">Sampai:</label>
-                <input type="date" name="tgl_sampai" value="{{ tgl_sampai }}"
-                       class="px-2 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Filter</button>
-                <a href="/opname" class="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200 border">Reset</a>
-            </form>
+            <div class="flex-1">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="font-bold text-gray-800">#{{ s.id }}</span>
+                    {% if s.status == 'draft' %}
+                        <span class="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">📝 Draft</span>
+                    {% elif s.status == 'selesai' %}
+                        <span class="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">⏳ Menunggu Approval</span>
+                    {% elif s.status == 'disetujui' %}
+                        <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">✅ Disetujui</span>
+                    {% elif s.status == 'ditolak' %}
+                        <span class="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">❌ Ditolak</span>
+                    {% endif %}
+                </div>
+                <div class="text-sm text-gray-500 flex items-center gap-3">
+                    <span>📅 {{ s.tanggal }}</span>
+                    <span>👤 {{ s.user_nama or '-' }}</span>
+                    <span>📦 {{ s.total_item }} item</span>
+                    {% if s.total_selisih > 0 %}
+                    <span class="text-red-600 font-medium">⚠️ {{ s.total_selisih }} selisih</span>
+                    {% endif %}
+                </div>
+                {% if s.catatan %}
+                <p class="text-xs text-gray-400 mt-1">💬 {{ s.catatan }}</p>
+                {% endif %}
+                {% if s.approver_nama %}
+                <p class="text-xs text-gray-400 mt-1">✓ Oleh: {{ s.approver_nama }} | {{ s.approved_at|format_date if s.approved_at else '' }}</p>
+                {% endif %}
+            </div>
+            <div class="flex items-center gap-2">
+                {% if s.status == 'draft' %}
+                    <a href="/opname/{{ s.id }}" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 font-medium">
+                        ✏️ Lanjut Input
+                    </a>
+                    <form method="post" action="/opname/{{ s.id }}/selesai" class="inline" onsubmit="return confirm('Tandai opname selesai & kirim ke Bos untuk approval?')">
+                        <button type="submit" class="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 font-medium">
+                            ✅ Selesai
+                        </button>
+                    </form>
+                {% elif s.status == 'selesai' and user.role == 'bos' %}
+                    <a href="/opname/{{ s.id }}" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 font-medium">
+                        👁️ Review
+                    </a>
+                    <form method="post" action="/opname/{{ s.id }}/approve" class="inline">
+                        <input type="hidden" name="aksi" value="approve">
+                        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 font-medium" onclick="return confirm('Setujui opname ini? Stok akan dikoreksi otomatis.')">
+                            ✅ Approve
+                        </button>
+                    </form>
+                    <form method="post" action="/opname/{{ s.id }}/approve" class="inline">
+                        <input type="hidden" name="aksi" value="reject">
+                        <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 font-medium" onclick="return confirm('Tolak opname ini?')">
+                            ❌ Tolak
+                        </button>
+                    </form>
+                {% elif s.status in ('disetujui', 'ditolak') %}
+                    <a href="/opname/{{ s.id }}" class="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm hover:bg-gray-700 font-medium">
+                        👁️ Detail
+                    </a>
+                {% endif %}
+                <!-- Print buttons -->
+                <div class="relative group">
+                    <button class="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 border">🖨️</button>
+                    <div class="hidden group-hover:block absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border z-10 min-w-[160px]">
+                        <a href="/opname/{{ s.id }}/print?mode=blank" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">📋 Print Kosong</a>
+                        <a href="/opname/{{ s.id }}/print?mode=hasil" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">📊 Print Hasil</a>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-    <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead class="bg-gray-50 border-b">
-                <tr>
-                    <th class="px-4 py-3 text-left font-medium text-gray-600">Tanggal</th>
-                    <th class="px-4 py-3 text-left font-medium text-gray-600">Kode</th>
-                    <th class="px-4 py-3 text-left font-medium text-gray-600">Produk</th>
-                    <th class="px-4 py-3 text-center font-medium text-gray-600">Sistem</th>
-                    <th class="px-4 py-3 text-center font-medium text-gray-600">Fisik</th>
-                    <th class="px-4 py-3 text-center font-medium text-gray-600">Selisih</th>
-                    <th class="px-4 py-3 text-left font-medium text-gray-600">Keterangan</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-                {% for o in riwayat %}
-                <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-3 text-gray-500">{{ o.created_at|format_date }}</td>
-                    <td class="px-4 py-3 font-mono text-xs">{{ o.produk_kode }}</td>
-                    <td class="px-4 py-3 font-medium">{{ o.produk_nama }}</td>
-                    <td class="px-4 py-3 text-center">{{ o.stok_sistem }}</td>
-                    <td class="px-4 py-3 text-center font-medium">{{ o.stok_fisik }}</td>
-                    <td class="px-4 py-3 text-center font-medium {% if o.selisih < 0 %}text-red-600{% elif o.selisih > 0 %}text-green-600{% else %}text-gray-500{% endif %}">
-                        {% if o.selisih > 0 %}+{% endif %}{{ o.selisih }}
-                    </td>
-                    <td class="px-4 py-3 text-gray-500">{{ o.keterangan or '-' }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    {% endfor %}
+
+    {% if not sessions %}
+    <div class="text-center py-16 text-gray-400">
+        <p class="text-5xl mb-3">📋</p>
+        <p class="text-lg font-medium">Belum ada sesi opname</p>
+        <p class="text-sm">Klik tombol "Opname Baru" untuk memulai</p>
     </div>
-    {% if not riwayat %}
-    <div class="text-center py-12 text-gray-400"><p class="text-4xl mb-2">📋</p><p>Belum ada stok opname</p></div>
     {% endif %}
 </div>
 
-<script>
-function simpanItem(produkId, stokSistem) {
-    const fisikInput = document.querySelector(`input[name="stok_fisik_${produkId}"]`);
-    const keteranganInput = document.querySelector(`input[name="keterangan_${produkId}"]`);
-    
-    if (!fisikInput.value) {
-        alert('Isi stok fisik terlebih dahulu!');
-        fisikInput.focus();
-        return;
-    }
-    
-    const stokFisik = parseInt(fisikInput.value);
-    const keterangan = keteranganInput.value || '';
-    
-    // Create form and submit
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '/opname/simpan';
-    
-    const fields = {
-        'produk_id': produkId,
-        'stok_fisik': stokFisik,
-        'keterangan': keterangan
-    };
-    
-    for (const [key, value] of Object.entries(fields)) {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = key;
-        input.value = value;
-        form.appendChild(input);
-    }
-    
-    document.body.appendChild(form);
-    form.submit();
-}
-
-// Auto-calculate selisih when fisik changes
-document.querySelectorAll('input[name^="stok_fisik_"]').forEach(input => {
-    input.addEventListener('input', function() {
-        const produkId = this.name.replace('stok_fisik_', '');
-        const stokSistem = parseInt(this.closest('tr').querySelector('td:nth-child(4)').textContent);
-        const stokFisik = parseInt(this.value) || 0;
-        const selisih = stokFisik - stokSistem;
-        const selisihCell = document.getElementById(`selisih_${produkId}`);
-        
-        if (this.value === '') {
-            selisihCell.textContent = '-';
-            selisihCell.className = 'px-4 py-3 text-center text-gray-400';
-        } else {
-            selisihCell.textContent = (selisih > 0 ? '+' : '') + selisih;
-            selisihCell.className = `px-4 py-3 text-center font-medium ${selisih < 0 ? 'text-red-600' : selisih > 0 ? 'text-green-600' : 'text-gray-500'}`;
-        }
-    });
-});
-</script>
-
-<style>
-@media print {
-    .bg-gray-100, nav, header, .no-print { display: none !important; }
-    .shadow-sm { box-shadow: none !important; }
-    body { background: white !important; }
-    input { border: 1px solid #ccc !important; }
-}
-</style>
+<!-- Modal: Opname Baru -->
+<div id="modalBaru" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div class="p-6 border-b">
+            <h3 class="text-lg font-bold text-gray-800">➕ Buat Stok Opname Baru</h3>
+        </div>
+        <form method="post" action="/opname/baru" class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Filter Kategori (opsional)</label>
+                <select name="kategori_id" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                    <option value="">Semua Kategori</option>
+                    {% for k in kategori_list %}
+                    <option value="{{ k.id }}">{{ k.nama }}</option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-gray-400 mt-1">Kosongkan = hitung semua produk</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Catatan (opsional)</label>
+                <textarea name="catatan" rows="2" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Contoh: Opname bulanan Juni 2026"></textarea>
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button type="button" onclick="document.getElementById('modalBaru').classList.add('hidden')" class="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium">Batal</button>
+                <button type="submit" class="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">Buat Sekarang</button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}
