@@ -7,6 +7,7 @@ Features: Login, Role, Print, Customer, Debt, Barcode, Backup, Price History, No
 import os
 import sqlite3
 import hashlib
+import asyncio
 import secrets
 import shutil
 import json
@@ -466,11 +467,10 @@ def get_current_user(request: Request):
 
 def require_auth(f):
     @wraps(f)
-    def decorated(request: Request, *args, **kwargs):
+    async def decorated(request: Request, *args, **kwargs):
         user = get_current_user(request)
         if not user:
             return RedirectResponse("/login", status_code=303)
-        # Check 8-hour session timeout
         if user['login_at']:
             login_time = datetime.fromisoformat(user['login_at'])
             if datetime.now() - login_time > timedelta(hours=8):
@@ -480,12 +480,14 @@ def require_auth(f):
                 response.delete_cookie("session_token")
                 return response
         request.state.user = user
+        if asyncio.iscoroutinefunction(f):
+            return await f(request, *args, **kwargs)
         return f(request, *args, **kwargs)
     return decorated
 
 def require_bos(f):
     @wraps(f)
-    def decorated(request: Request, *args, **kwargs):
+    async def decorated(request: Request, *args, **kwargs):
         user = get_current_user(request)
         if not user:
             return RedirectResponse("/login", status_code=303)
@@ -500,12 +502,14 @@ def require_bos(f):
         if user["role"] != "bos":
             return RedirectResponse("/?error=unauthorized", status_code=303)
         request.state.user = user
+        if asyncio.iscoroutinefunction(f):
+            return await f(request, *args, **kwargs)
         return f(request, *args, **kwargs)
     return decorated
 
 def require_bos_or_og(f):
     @wraps(f)
-    def decorated(request: Request, *args, **kwargs):
+    async def decorated(request: Request, *args, **kwargs):
         user = get_current_user(request)
         if not user:
             return RedirectResponse("/login", status_code=303)
@@ -520,6 +524,8 @@ def require_bos_or_og(f):
         if user["role"] not in ("bos", "og"):
             return RedirectResponse("/?error=unauthorized", status_code=303)
         request.state.user = user
+        if asyncio.iscoroutinefunction(f):
+            return await f(request, *args, **kwargs)
         return f(request, *args, **kwargs)
     return decorated
 
