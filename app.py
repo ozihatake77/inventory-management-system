@@ -135,7 +135,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS hutang (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            pelanggan_id INTEGER NOT NULL,
+            pelanggan_id INTEGER,
             penjualan_id INTEGER,
             jumlah REAL NOT NULL DEFAULT 0,
             sudah_bayar REAL NOT NULL DEFAULT 0,
@@ -217,17 +217,53 @@ def init_db():
             except: pass
         try: db.execute("ALTER TABLE penjualan ADD COLUMN approval_id INTEGER")
         except: pass
-        # Migrate role CHECK if needed (add 'og')
+        # Make hutang.pelanggan_id nullable (recreate table)
         try:
-            db.execute("ALTER TABLE users RENAME TO _users_migrate")
-            db.execute("""CREATE TABLE users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE,
-                password_hash TEXT NOT NULL, nama TEXT NOT NULL,
-                role TEXT NOT NULL CHECK(role IN ('bos', 'og', 'karyawan')),
-                aktif INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
-            db.execute("INSERT INTO users SELECT * FROM _users_migrate")
-            db.execute("DROP TABLE _users_migrate")
+            schema = db.execute("SELECT sql FROM sqlite_master WHERE name='hutang' AND type='table'").fetchone()
+            if schema and "NOT NULL" in schema[0] and "pelanggan_id" in schema[0]:
+                db.execute("ALTER TABLE hutang RENAME TO _hutang_migrate_tmp")
+                db.execute("""CREATE TABLE hutang (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    pelanggan_id INTEGER,
+                    penjualan_id INTEGER,
+                    jumlah REAL NOT NULL DEFAULT 0,
+                    sudah_bayar REAL NOT NULL DEFAULT 0,
+                    sisa REAL NOT NULL DEFAULT 0,
+                    status TEXT DEFAULT 'belum' CHECK(status IN ('belum', 'sebagian', 'lunas')),
+                    jatuh_tempo DATE,
+                    keterangan TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (pelanggan_id) REFERENCES pelanggan(id) ON DELETE SET NULL,
+                    FOREIGN KEY (penjualan_id) REFERENCES penjualan(id) ON DELETE SET NULL
+                )""")
+                db.execute("INSERT INTO hutang SELECT * FROM _hutang_migrate_tmp")
+                db.execute("DROP TABLE _hutang_migrate_tmp")
         except: pass
+        # Migrate role CHECK if needed (add 'og') - safe check first
+        has_og = False
+        try:
+            # Check if 'og' is already in the schema
+            schema = db.execute("SELECT sql FROM sqlite_master WHERE name='users' AND type='table'").fetchone()
+            if schema and "'og'" in schema[0]:
+                has_og = True
+        except: pass
+        if not has_og:
+            try:
+                db.execute("ALTER TABLE users RENAME TO _users_migrate_tmp")
+                db.execute("""CREATE TABLE users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE,
+                    password_hash TEXT NOT NULL, nama TEXT NOT NULL,
+                    role TEXT NOT NULL CHECK(role IN ('bos', 'og', 'karyawan')),
+                    aktif INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+                db.execute("INSERT INTO users SELECT * FROM _users_migrate_tmp")
+                db.execute("DROP TABLE _users_migrate_tmp")
+            except:
+                # If anything fails, try to restore
+                try:
+                    db.execute("DROP TABLE IF EXISTS users")
+                    db.execute("ALTER TABLE _users_migrate_tmp RENAME TO users")
+                except: pass
 
         # Seed default admin if not exists
         admin = db.execute("SELECT * FROM users WHERE username='admin'").fetchone()
@@ -241,6 +277,66 @@ def init_db():
                          "Kompor & Oven", "Blender & Mixer", "Setrika & Pengering", "Lainnya"]
         for k in kategori_list:
             db.execute("INSERT OR IGNORE INTO kategori (nama) VALUES (?)", (k,))
+
+        # Seed sample data if empty
+        if db.execute("SELECT COUNT(*) FROM produk").fetchone()[0] == 0:
+            # Sample products
+            sample_produk = [
+                ("TV LED Samsung 43\"", "TV & Monitor", 3000000, 3500000, 3200000, 15, 5),
+                ("Kulkas Samsung 2 Pintu", "Kulkas & Freezer", 3500000, 4200000, 3800000, 8, 3),
+                ("Mesin Cuci LG 7kg", "Mesin Cuci", 2500000, 3100000, 2700000, 10, 3),
+                ("AC Daikin 1.5PK", "AC & Kipas", 4000000, 4800000, 4300000, 6, 2),
+                ("Kompor Gas Rinnai 2 Tungku", "Kompor & Oven", 500000, 650000, 550000, 20, 5),
+                ("Blender Philips HR2157", "Blender & Mixer", 350000, 450000, 380000, 25, 5),
+                ("Setrika Maspion 300W", "Setrika & Pengering", 150000, 200000, 170000, 30, 10),
+                ("TV LED LG 32\"", "TV & Monitor", 2000000, 2500000, 2200000, 12, 5),
+                ("Freezer Chest Akari 200L", "Kulkas & Freezer", 1800000, 2300000, 2000000, 5, 2),
+                ("Kipas Angin Miyako", "AC & Kipas", 200000, 280000, 230000, 40, 10),
+            ]
+            for nama, kat, modal, jual, bottom, stok, min_stok in sample_produk:
+                kat_id = db.execute("SELECT id FROM kategori WHERE nama=?", (kat,)).fetchone()
+                last = db.execute("SELECT id FROM produk ORDER BY id DESC LIMIT 1").fetchone()
+                kode = f"P{str((last['id'] if last else 0) + 1).zfill(4)}"
+                db.execute("""INSERT INTO produk (kode, barcode, nama, kategori_id, harga_modal, harga_jual, harga_bottom, stok, stok_minimum, satuan)
+                    VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, 'pcs')""",
+                    (kode, nama, kat_id[0] if kat_id else None, modal, jual, bottom, stok, min_stok))
+
+            # Sample users (OG)
+            og_hash = hashlib.sha256("og123".encode()).hexdigest()
+            db.execute("INSERT OR IGNORE INTO users (username, password_hash, nama, role) VALUES (?, ?, ?, ?)",
+                       ("og1", og_hash, "Tangan Kanan", "og"))
+            emp_hash = hashlib.sha256("emp123".encode()).hexdigest()
+            db.execute("INSERT OR IGNORE INTO users (username, password_hash, nama, role) VALUES (?, ?, ?, ?)",
+                       ("kasir1", emp_hash, "Kasir Satu", "karyawan"))
+
+            # Sample penjualan (last 7 days)
+            import random
+            today = datetime.now()
+            for i in range(15):
+                days_ago = random.randint(0, 7)
+                date = (today - timedelta(days=days_ago)).strftime("%Y-%m-%d %H:%M:%S")
+                prod_id = random.randint(1, 10)
+                prod = db.execute("SELECT * FROM produk WHERE id=?", (prod_id,)).fetchone()
+                if prod:
+                    qty = random.randint(1, 3)
+                    harga = prod["harga_jual"]
+                    total = harga * qty
+                    keuntungan = (harga - prod["harga_modal"]) * qty
+                    customer_names = ["Budi Santoso", "Siti Rahayu", "Ahmad Hidayat", "Dewi Lestari", "Rudi Hermawan", "-", "-", "-"]
+                    cust = random.choice(customer_names)
+                    db.execute("""INSERT INTO penjualan (user_id, produk_id, jumlah, harga_satuan, harga_modal, total, keuntungan, keterangan, nama_customer, created_at)
+                        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (prod_id, qty, harga, prod["harga_modal"], total, keuntungan, "", cust, date))
+                    db.execute("UPDATE produk SET stok = stok - ? WHERE id=?", (qty, prod_id))
+
+            # Sample hutang (2 entries)
+            hutang_entries = [
+                (1, 2500000, 0, 2500000, "belum", (today + timedelta(days=14)).strftime("%Y-%m-%d"), "Budi Santoso"),
+                (3, 1500000, 0, 1500000, "belum", (today + timedelta(days=7)).strftime("%Y-%m-%d"), "Ahmad Hidayat"),
+            ]
+            for pen_id, jumlah, sudah, sisa, status, tempo, cust in hutang_entries:
+                db.execute("""INSERT INTO hutang (pelanggan_id, penjualan_id, jumlah, sudah_bayar, sisa, status, jatuh_tempo, keterangan)
+                    VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)""", (pen_id, jumlah, sudah, sisa, status, tempo, f"Customer: {cust}"))
 
 init_db()
 
@@ -782,7 +878,7 @@ def penjualan_tambah(request: Request, produk_id: int = Form(...), jumlah: int =
                      nama_customer: str = Form("-"), alamat_customer: str = Form(""),
                      hp_customer: str = Form(""), email_customer: str = Form(""),
                      keterangan: str = Form(""), metode_bayar: str = Form("tunai"),
-                     approval_id: int = Form(0)):
+                     approval_id: int = Form(0), tempo_hari: int = Form(30)):
     with get_db() as db:
         produk = db.execute("SELECT * FROM produk WHERE id = ?", (produk_id,)).fetchone()
         if produk["stok"] < jumlah:
@@ -812,6 +908,16 @@ def penjualan_tambah(request: Request, produk_id: int = Form(...), jumlah: int =
         # Notification
         db.execute("INSERT INTO notifikasi (tipe, pesan, link) VALUES ('penjualan', ?, ?)",
                    (f"Penjualan: {produk['nama']} x{jumlah} = Rp {total:,.0f}", f"/penjualan/nota/{penjualan_id}"))
+
+        # Create hutang if method is hutang
+        if metode_bayar == "hutang":
+            jatuh_tempo = (datetime.now() + timedelta(days=tempo_hari)).strftime("%Y-%m-%d")
+            db.execute("""
+                INSERT INTO hutang (pelanggan_id, penjualan_id, jumlah, sudah_bayar, sisa, status, jatuh_tempo, keterangan)
+                VALUES (NULL, ?, ?, 0, ?, 'belum', ?, ?)
+            """, (penjualan_id, total, total, jatuh_tempo, f"Customer: {nama_customer}"))
+            db.execute("INSERT INTO notifikasi (tipe, pesan, link) VALUES ('hutang', ?, ?)",
+                       (f"Hutang baru: Rp {total:,.0f} - jatuh tempo {jatuh_tempo}", "/hutang"))
 
     check_low_stock()
     return RedirectResponse(f"/penjualan/nota/{penjualan_id}?print=1", status_code=303)
@@ -882,9 +988,11 @@ def pelanggan_hapus(request: Request, id: int):
 def hutang_page(request: Request, status: str = "semua"):
     with get_db() as db:
         query = """
-            SELECT h.*, p.nama as pelanggan_nama, p.telepon as pelanggan_telp,
-                   pen.total as penjualan_total
-            FROM hutang h JOIN pelanggan p ON h.pelanggan_id = p.id
+            SELECT h.*, COALESCE(p.nama, pen.nama_customer, '-') as pelanggan_nama,
+                   p.telepon as pelanggan_telp, pen.total as penjualan_total,
+                   pen.nama_customer
+            FROM hutang h
+            LEFT JOIN pelanggan p ON h.pelanggan_id = p.id
             LEFT JOIN penjualan pen ON h.penjualan_id = pen.id
         """
         if status == "belum":
