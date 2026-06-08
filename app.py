@@ -286,6 +286,14 @@ def init_db():
         except: pass
         try: db.execute("ALTER TABLE penjualan ADD COLUMN metode_bayar TEXT DEFAULT 'tunai'")
         except: pass
+        try: db.execute("ALTER TABLE penjualan ADD COLUMN status TEXT DEFAULT 'active'")
+        except: pass
+        try: db.execute("ALTER TABLE penjualan ADD COLUMN void_reason TEXT DEFAULT ''")
+        except: pass
+        try: db.execute("ALTER TABLE penjualan ADD COLUMN void_by INTEGER")
+        except: pass
+        try: db.execute("ALTER TABLE penjualan ADD COLUMN void_at TIMESTAMP")
+        except: pass
         try: db.execute("ALTER TABLE stok_opname ADD COLUMN session_id INTEGER")
         except: pass
         # Init permissions for existing users who don't have any
@@ -1196,15 +1204,17 @@ def penjualan_page(request: Request, periode: str = "hari", tgl_dari: str = "", 
 
         penjualan = db.execute(f"""
             SELECT pen.*, pr.nama as produk_nama, pr.kode as produk_kode,
-                   u.nama as user_nama
+                   u.nama as user_nama,
+                   vu.nama as void_by_nama
             FROM penjualan pen JOIN produk pr ON pen.produk_id = pr.id
             LEFT JOIN users u ON pen.user_id = u.id
+            LEFT JOIN users vu ON pen.void_by = vu.id
             WHERE {where} ORDER BY pen.created_at DESC
         """, params).fetchall()
 
         totals = db.execute(f"""
             SELECT COALESCE(SUM(pen.total), 0), COALESCE(SUM(pen.keuntungan), 0), COUNT(*)
-            FROM penjualan pen WHERE {where}
+            FROM penjualan pen WHERE {where} AND (pen.status IS NULL OR pen.status = 'active')
         """, params).fetchone()
 
         produk = db.execute("SELECT * FROM produk WHERE stok > 0 ORDER BY nama").fetchall()
@@ -1293,6 +1303,27 @@ def nota_page(request: Request, id: int, print: int = 0):
     return templates.TemplateResponse(request, "invoice.html", {
         "request": request, "user": request.state.user, "pen": pen, "auto_print": print
     })
+
+@app.post("/penjualan/void/{id}")
+@require_bos_or_og
+def penjualan_void(request: Request, id: int, alasan: str = Form(...)):
+    user = request.state.user
+    with get_db() as db:
+        pen = db.execute("SELECT * FROM penjualan WHERE id=? AND status='active'", (id,)).fetchone()
+        if not pen:
+            return RedirectResponse("/penjualan?error=not_found", status_code=303)
+        # Mark as voided
+        db.execute("""UPDATE penjualan SET status='voided', void_reason=?, void_by=?, void_at=CURRENT_TIMESTAMP WHERE id=?""",
+                   (alasan, user["id"], id))
+        # Restore stock
+        db.execute("UPDATE produk SET stok = stok + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                   (pen["jumlah"], pen["produk_id"]))
+        # Log stock mutation
+        db.execute("""INSERT INTO stok_mutasi (produk_id, tipe, jumlah, harga_satuan, user_id, keterangan)
+                      VALUES (?, 'masuk', ?, ?, ?, ?)""",
+                   (pen["produk_id"], pen["jumlah"], pen["harga_satuan"], user["id"], f"Void penjualan #{id}: {alasan}"))
+        log_audit(db, user, "Void Penjualan", "penjualan", f"#{id}: {pen['produk_nama']} x{pen['jumlah']} - Alasan: {alasan}", request.client.host)
+    return RedirectResponse("/penjualan?voided=ok", status_code=303)
 
 # ═══════════════════════════════════════════════════════════════════════
 # ROUTES: PELANGGAN

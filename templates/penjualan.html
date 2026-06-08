@@ -95,7 +95,7 @@
             </thead>
             <tbody class="divide-y divide-gray-100">
                 {% for p in penjualan %}
-                <tr class="hover:bg-gray-50">
+                <tr class="hover:bg-gray-50 {% if p.status == 'voided' %}bg-red-50 opacity-60{% endif %}">
                     <td class="px-4 py-3 text-gray-500">{{ p.created_at|format_date }}</td>
                     <td class="px-4 py-3 font-medium">{{ p.produk_nama }}</td>
                     <td class="px-4 py-3 text-gray-500">{{ p.nama_customer or '-' }}</td>
@@ -116,7 +116,16 @@
                     <td class="px-4 py-3 text-right font-medium text-green-600">{{ p.keuntungan|rupiah }}</td>
                     {% endif %}
                     <td class="px-4 py-3 text-center">
-                        <a href="/penjualan/nota/{{ p.id }}" target="_blank" class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200">🖨️ Nota</a>
+                        <div class="flex gap-1 justify-center">
+                            <a href="/penjualan/nota/{{ p.id }}" target="_blank" class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200">🖨️ Nota</a>
+                            {% if p.status != 'voided' and user.role in ['bos', 'og'] %}
+                            <button onclick="voidPenjualan({{ p.id }}, '{{ p.produk_nama }}')" class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">❌ Void</button>
+                            {% endif %}
+                        </div>
+                        {% if p.status == 'voided' %}
+                        <p class="text-xs text-red-500 mt-1">❌ Dibatalkan: {{ p.void_reason }}</p>
+                        <p class="text-xs text-gray-400">oleh {{ p.void_by_nama or 'N/A' }}</p>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -191,9 +200,34 @@
         <div class="p-6">
             <h3 class="text-lg font-bold mb-4">💰 Catat Penjualan</h3>
             <form method="post" action="/penjualan/tambah" class="space-y-3">
+                <!-- Barcode Search -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">🔍 Scan Barcode</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="barcodeInput" placeholder="Scan atau ketik barcode..."
+                               class="flex-1 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                               @keydown.enter.prevent="
+                                   if($event.target.value) {
+                                       fetch('/api/produk/barcode/' + $event.target.value)
+                                           .then(r => r.json())
+                                           .then(data => {
+                                               if(data.found) {
+                                                   produkId = String(data.id);
+                                                   fetchProduk(String(data.id));
+                                               } else {
+                                                   alert('Barcode tidak ditemukan!');
+                                               }
+                                           });
+                                   }
+                               ">
+                        <button type="button" onclick="document.getElementById('barcodeInput').focus()"
+                                class="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm hover:bg-blue-200">📷</button>
+                    </div>
+                </div>
+
                 <!-- Product Selection -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Produk</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Atau Pilih Produk</label>
                     <select name="produk_id" required class="w-full px-3 py-2 border rounded-lg text-sm"
                             x-model="produkId" @change="fetchProduk($event.target.value)">
                         <option value="">Pilih produk...</option>
@@ -316,4 +350,39 @@
         </div>
     </div>
 </div>
+
+<!-- Void Modal -->
+<div id="modalVoid" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+        <div class="p-6">
+            <h3 class="text-lg font-bold mb-2 text-red-600">❌ Void Penjualan</h3>
+            <p class="text-sm text-gray-500 mb-4">Produk: <span id="voidProdukNama" class="font-medium"></span></p>
+            <form id="formVoid" method="post" class="space-y-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Alasan Void <span class="text-red-500">*</span></label>
+                    <textarea name="alasan" id="voidAlasan" required rows="3"
+                              class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-red-500"
+                              placeholder="Alasan pembatalan..."></textarea>
+                </div>
+                <div class="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p class="text-xs text-red-600">⚠️ Transaksi akan dibatalkan dan stok akan dikembalikan. Tindakan ini tercatat di audit log.</p>
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="submit" class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">❌ Void Sekarang</button>
+                    <button type="button" onclick="document.getElementById('modalVoid').classList.add('hidden')"
+                            class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">Batal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function voidPenjualan(id, nama) {
+    document.getElementById('formVoid').action = '/penjualan/void/' + id;
+    document.getElementById('voidProdukNama').textContent = nama;
+    document.getElementById('voidAlasan').value = '';
+    document.getElementById('modalVoid').classList.remove('hidden');
+}
+</script>
 {% endblock %}
