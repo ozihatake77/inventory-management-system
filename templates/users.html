@@ -65,6 +65,10 @@
                         <div class="flex gap-1 justify-center">
                             <button onclick="editUser({{ u.id }}, '{{ u.nama }}', '{{ u.role }}', {{ u.aktif }})"
                                     class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs hover:bg-yellow-200">✏️</button>
+                            {% if u.role != 'bos' %}
+                            <button onclick="openPermissions({{ u.id }}, '{{ u.nama }}', '{{ u.role }}', {{ u.id }})"
+                                    class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs hover:bg-purple-200">🔒</button>
+                            {% endif %}
                             {% if u.username != 'admin' %}
                             <a href="/users/hapus/{{ u.id }}" onclick="return confirm('Hapus user ini?')"
                                class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">🗑️</a>
@@ -116,13 +120,239 @@
     </div>
 </div>
 
+<!-- Modal Atur Akses -->
+<div id="modalPerms" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold">🔒 Atur Akses: <span id="permUserName" class="text-purple-600"></span></h3>
+                <button onclick="document.getElementById('modalPerms').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <p class="text-sm text-gray-500 mb-4" id="permRoleInfo"></p>
+            
+            <form id="formPerms" method="post" action="">
+                <!-- Transaksi -->
+                <div class="mb-4">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">📝 Transaksi</h4>
+                    <div class="space-y-2 pl-2">
+                        <label class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                            <div>
+                                <span class="font-medium text-sm">💰 Penjualan</span>
+                                <p class="text-xs text-gray-400">Buat transaksi penjualan & cetak invoice</p>
+                            </div>
+                            <div class="relative">
+                                <input type="checkbox" name="penjualan" class="sr-only perm-toggle" data-feature="penjualan">
+                                <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                            </div>
+                        </label>
+                        <label class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                            <div>
+                                <span class="font-medium text-sm">💳 Hutang/Piutang</span>
+                                <p class="text-xs text-gray-400">Kelola hutang pelanggan</p>
+                            </div>
+                            <div class="relative">
+                                <input type="checkbox" name="hutang" class="sr-only perm-toggle" data-feature="hutang">
+                                <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Stok Barang -->
+                <div class="mb-4">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">📦 Stok Barang</h4>
+                    <div class="space-y-2 pl-2">
+                        <label class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                            <div>
+                                <span class="font-medium text-sm">👁️ Lihat Stok</span>
+                                <p class="text-xs text-gray-400">Lihat daftar stok & harga</p>
+                            </div>
+                            <div class="relative">
+                                <input type="checkbox" name="stok_lihat" class="sr-only perm-toggle" data-feature="stok_lihat">
+                                <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                            </div>
+                        </label>
+                        <label class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                            <div>
+                                <span class="font-medium text-sm">📥 Stok Masuk</span>
+                                <p class="text-xs text-gray-400">Catat barang masuk ke gudang</p>
+                            </div>
+                            <div class="relative">
+                                <input type="checkbox" name="stok_masuk" class="sr-only perm-toggle" data-feature="stok_masuk">
+                                <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                            </div>
+                        </label>
+                        <label class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                            <div>
+                                <span class="font-medium text-sm">📤 Stok Keluar</span>
+                                <p class="text-xs text-gray-400">Catat barang keluar dari gudang</p>
+                            </div>
+                            <div class="relative">
+                                <input type="checkbox" name="stok_keluar" class="sr-only perm-toggle" data-feature="stok_keluar">
+                                <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                            </div>
+                        </label>
+                        <label class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                            <div>
+                                <span class="font-medium text-sm">📋 Stok Opname</span>
+                                <p class="text-xs text-gray-400">Hitung & cocokkan stok fisik</p>
+                            </div>
+                            <div class="relative">
+                                <input type="checkbox" name="stok_opname" class="sr-only perm-toggle" data-feature="stok_opname">
+                                <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Lainnya -->
+                <div class="mb-4">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">⚙️ Lainnya</h4>
+                    <div class="space-y-2 pl-2">
+                        <label class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                            <div>
+                                <span class="font-medium text-sm">📈 Laporan</span>
+                                <p class="text-xs text-gray-400">Lihat laporan keuntungan</p>
+                            </div>
+                            <div class="relative">
+                                <input type="checkbox" name="laporan" class="sr-only perm-toggle" data-feature="laporan">
+                                <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                            </div>
+                        </label>
+                        <label class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                            <div>
+                                <span class="font-medium text-sm">📜 Audit Log</span>
+                                <p class="text-xs text-gray-400">Lihat riwayat aktivitas sistem</p>
+                            </div>
+                            <div class="relative">
+                                <input type="checkbox" name="audit_log" class="sr-only perm-toggle" data-feature="audit_log">
+                                <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                            </div>
+                        </label>
+                        <label class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                            <div>
+                                <span class="font-medium text-sm">🗑️ Hapus Data</span>
+                                <p class="text-xs text-gray-400">Hapus produk, penjualan, dll</p>
+                            </div>
+                            <div class="relative">
+                                <input type="checkbox" name="hapus_data" class="sr-only perm-toggle" data-feature="hapus_data">
+                                <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="flex gap-2 mb-4">
+                    <button type="button" onclick="setAllPerms(true)" class="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs hover:bg-green-200 font-medium">✅ Aktifkan Semua</button>
+                    <button type="button" onclick="setAllPerms(false)" class="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs hover:bg-red-200 font-medium">❌ Nonaktifkan Semua</button>
+                    <button type="button" onclick="resetDefaults()" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs hover:bg-gray-200 font-medium">🔄 Default Role</button>
+                </div>
+
+                <div class="flex gap-2 pt-2 border-t">
+                    <button type="submit" class="flex-1 px-4 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">💾 Simpan Akses</button>
+                    <button type="button" onclick="document.getElementById('modalPerms').classList.add('hidden')" class="px-4 py-2.5 bg-gray-200 rounded-lg font-medium">Batal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Toggle switch styling */
+.toggle-bg {
+    transition: background-color 0.2s;
+    position: relative;
+}
+.toggle-bg::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+input:checked ~ .toggle-bg {
+    background-color: #7c3aed;
+}
+input:checked ~ .toggle-bg::after {
+    transform: translateX(20px);
+}
+</style>
+
 <script>
+// Edit user modal
 function editUser(id, nama, role, aktif) {
     document.getElementById('formEdit').action = '/users/edit/' + id;
     document.getElementById('edit_nama').value = nama;
     document.getElementById('edit_role').value = role;
     document.getElementById('edit_aktif').value = aktif;
     document.getElementById('modalEdit').classList.remove('hidden');
+}
+
+// Permission modal
+let currentRole = '';
+
+const FEATURE_LABELS = {
+    'penjualan': 'Penjualan', 'hutang': 'Hutang/Piutang',
+    'stok_lihat': 'Lihat Stok', 'stok_masuk': 'Stok Masuk', 'stok_keluar': 'Stok Keluar', 'stok_opname': 'Stok Opname',
+    'laporan': 'Laporan', 'audit_log': 'Audit Log', 'hapus_data': 'Hapus Data'
+};
+
+const ROLE_DEFAULTS = {{ role_defaults | tojson }};
+
+function openPermissions(userId, userName, role, uid) {
+    currentRole = role;
+    document.getElementById('permUserName').textContent = userName;
+    document.getElementById('permRoleInfo').textContent = `Role: ${role.toUpperCase()} — ${role === 'og' ? 'OG bisa akses semua fitur (bisa dikustomisasi)' : 'Karyawan akses terbatas (default)'}`;
+    document.getElementById('formPerms').action = `/users/${userId}/permissions/save`;
+
+    // Load current permissions via API
+    fetch(`/api/users/${userId}/permissions`)
+        .then(r => r.json())
+        .then(data => {
+            const perms = data.permissions || {};
+            document.querySelectorAll('.perm-toggle').forEach(toggle => {
+                const feature = toggle.dataset.feature;
+                toggle.checked = perms[feature] !== undefined ? perms[feature] : false;
+                updateToggleVisual(toggle);
+            });
+        });
+
+    document.getElementById('modalPerms').classList.remove('hidden');
+}
+
+// Toggle click handler
+document.querySelectorAll('.perm-toggle').forEach(toggle => {
+    toggle.closest('label').querySelector('.toggle-bg').addEventListener('click', function(e) {
+        e.preventDefault();
+        toggle.checked = !toggle.checked;
+        updateToggleVisual(toggle);
+    });
+});
+
+function updateToggleVisual(toggle) {
+    // The CSS handles visual via input:checked ~ .toggle-bg
+    // Force re-render
+    toggle.closest('label').querySelector('.toggle-bg').style.backgroundColor = '';
+}
+
+function setAllPerms(enabled) {
+    document.querySelectorAll('.perm-toggle').forEach(t => {
+        t.checked = enabled;
+    });
+}
+
+function resetDefaults() {
+    const defaults = ROLE_DEFAULTS[currentRole] || {};
+    document.querySelectorAll('.perm-toggle').forEach(t => {
+        const feature = t.dataset.feature;
+        t.checked = defaults[feature] || false;
+    });
 }
 </script>
 {% endblock %}

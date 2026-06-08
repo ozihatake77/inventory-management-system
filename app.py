@@ -32,6 +32,18 @@ app = FastAPI(title="Stok Toko Elektronik", debug=True)
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
+# Add permission check function to Jinja2 globals
+def template_has_permission(user, feature):
+    """Template helper to check user permissions"""
+    if not user:
+        return False
+    if user["role"] == "bos":
+        return True
+    with get_db() as db:
+        return has_permission(db, user, feature)
+
+templates.env.globals["has_perm"] = template_has_permission
+
 # ── Database ────────────────────────────────────────────────────────────
 @contextmanager
 def get_db():
@@ -220,6 +232,16 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
         );
 
+        CREATE TABLE IF NOT EXISTS user_permissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            feature TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            UNIQUE(user_id, feature)
+        );
+
         CREATE TABLE IF NOT EXISTS opname_session (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             tanggal DATE NOT NULL DEFAULT (DATE('now')),
@@ -262,6 +284,21 @@ def init_db():
         try: db.execute("ALTER TABLE penjualan ADD COLUMN approval_id INTEGER")
         except: pass
         try: db.execute("ALTER TABLE stok_opname ADD COLUMN session_id INTEGER")
+        except: pass
+        # Init permissions for existing users who don't have any
+        try:
+            _role_defaults = {
+                "bos": {"penjualan": True, "hutang": True, "stok_lihat": True, "stok_masuk": True, "stok_keluar": True, "stok_opname": True, "laporan": True, "audit_log": True, "hapus_data": True},
+                "og": {"penjualan": True, "hutang": True, "stok_lihat": True, "stok_masuk": True, "stok_keluar": True, "stok_opname": True, "laporan": True, "audit_log": True, "hapus_data": True},
+                "karyawan": {"penjualan": True, "hutang": True, "stok_lihat": True, "stok_masuk": False, "stok_keluar": False, "stok_opname": False, "laporan": False, "audit_log": False, "hapus_data": False},
+            }
+            existing_users = db.execute("SELECT id, role FROM users").fetchall()
+            for u in existing_users:
+                has_perms = db.execute("SELECT COUNT(*) FROM user_permissions WHERE user_id = ?", (u["id"],)).fetchone()[0]
+                if has_perms == 0:
+                    defaults = _role_defaults.get(u["role"], _role_defaults["karyawan"])
+                    for feature, enabled in defaults.items():
+                        db.execute("INSERT OR IGNORE INTO user_permissions (user_id, feature, enabled) VALUES (?, ?, ?)", (u["id"], feature, int(enabled)))
         except: pass
         # Make hutang.pelanggan_id nullable (recreate table)
         try:
@@ -485,6 +522,48 @@ def require_bos_or_og(f):
         request.state.user = user
         return f(request, *args, **kwargs)
     return decorated
+
+# ── Permission Helper ──────────────────────────────────────────────────
+ALL_FEATURES = [
+    "penjualan", "hutang",
+    "stok_lihat", "stok_masuk", "stok_keluar", "stok_opname",
+    "laporan", "audit_log", "hapus_data",
+]
+
+ROLE_DEFAULTS = {
+    "bos": {f: True for f in ALL_FEATURES},
+    "og": {f: True for f in ALL_FEATURES},
+    "karyawan": {
+        "penjualan": True, "hutang": True,
+        "stok_lihat": True, "stok_masuk": False, "stok_keluar": False, "stok_opname": False,
+        "laporan": False, "audit_log": False, "hapus_data": False,
+    },
+}
+
+def get_user_permissions(db, user_id):
+    perms = db.execute("SELECT feature, enabled FROM user_permissions WHERE user_id = ?", (user_id,)).fetchall()
+    if perms:
+        return {p["feature"]: bool(p["enabled"]) for p in perms}
+    return {}
+
+def has_permission(db, user, feature):
+    if not user:
+        return False
+    if user["role"] == "bos":
+        return True
+    perms = get_user_permissions(db, user["id"])
+    if not perms:
+        defaults = ROLE_DEFAULTS.get(user["role"], {})
+        return defaults.get(feature, False)
+    return perms.get(feature, False)
+
+def init_user_permissions(db, user_id, role):
+    defaults = ROLE_DEFAULTS.get(role, {})
+    for feature, enabled in defaults.items():
+        db.execute(
+            "INSERT OR IGNORE INTO user_permissions (user_id, feature, enabled) VALUES (?, ?, ?)",
+            (user_id, feature, int(enabled))
+        )
 
 # ── Notification Helper ─────────────────────────────────────────────────
 def log_audit(db, user, aksi, kategori, detail="", ip=""):
@@ -1564,12 +1643,17 @@ def kategori_hapus(request: Request, id: int):
 # ROUTES: USER MANAGEMENT (BOS ONLY)
 # ═══════════════════════════════════════════════════════════════════════
 @app.get("/users", response_class=HTMLResponse)
-@require_bos
+@require_bos_or_og
 def users_page(request: Request):
     with get_db() as db:
         users = db.execute("SELECT * FROM users ORDER BY role, nama").fetchall()
+        # Get permissions for all users
+        all_perms = {}
+        for u in users:
+            all_perms[u["id"]] = get_user_permissions(db, u["id"])
     return templates.TemplateResponse(request, "users.html", {
-        "request": request, "user": request.state.user, "users": users
+        "request": request, "user": request.state.user, "users": users,
+        "all_perms": all_perms, "all_features": ALL_FEATURES, "role_defaults": ROLE_DEFAULTS,
     })
 
 @app.post("/users/tambah")
@@ -1580,6 +1664,8 @@ def users_tambah(request: Request, username: str = Form(...), password: str = Fo
     with get_db() as db:
         db.execute("INSERT INTO users (username, password_hash, nama, role) VALUES (?, ?, ?, ?)",
                    (username, pw_hash, nama, role))
+        new_user_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+        init_user_permissions(db, new_user_id, role)
         log_audit(db, request.state.user, "Tambah User", "user", f"User: {username} ({role})", request.client.host)
     return RedirectResponse("/users", status_code=303)
 
@@ -1602,6 +1688,38 @@ def users_edit(request: Request, id: int, nama: str = Form(...), role: str = For
 def users_hapus(request: Request, id: int):
     with get_db() as db:
         db.execute("DELETE FROM users WHERE id=?", (id,))
+    return RedirectResponse("/users", status_code=303)
+
+@app.get("/api/users/{user_id}/permissions")
+@require_bos_or_og
+def get_permissions_api(request: Request, user_id: int):
+    """API: Get user permissions as JSON"""
+    with get_db() as db:
+        perms = get_user_permissions(db, user_id)
+        if not perms:
+            target = db.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
+            if target:
+                perms = ROLE_DEFAULTS.get(target["role"], {})
+        return JSONResponse({"permissions": perms, "features": ALL_FEATURES})
+
+@app.post("/users/{user_id}/permissions/save")
+@require_bos_or_og
+async def save_permissions(request: Request, user_id: int):
+    """Save permissions from form submission"""
+    form = await request.form()
+    with get_db() as db:
+        target = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not target or target["role"] == "bos":
+            return RedirectResponse("/users", status_code=303)
+        db.execute("DELETE FROM user_permissions WHERE user_id = ?", (user_id,))
+        for feature in ALL_FEATURES:
+            enabled = 1 if form.get(feature) == "on" else 0
+            db.execute("INSERT INTO user_permissions (user_id, feature, enabled) VALUES (?, ?, ?)",
+                       (user_id, feature, enabled))
+        enabled_list = [f for f in ALL_FEATURES if form.get(f) == "on"]
+        log_audit(db, request.state.user, "Update Permission", "user",
+                  f"User: {target['username']} | Enabled: {', '.join(enabled_list) or 'none'}",
+                  request.client.host if request.client else "")
     return RedirectResponse("/users", status_code=303)
 
 # ═══════════════════════════════════════════════════════════════════════

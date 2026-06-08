@@ -59,30 +59,46 @@
             <span>👥</span> Pelanggan
         </a>
 
+        {% if user and has_perm(user, 'stok_lihat') %}
         <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Stok Barang</div>
         <a href="/stok" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if request.url.path == '/stok' %}bg-blue-700 font-medium{% endif %}">
             <span>📦</span> Stok
         </a>
+        {% endif %}
+        {% if user and has_perm(user, 'stok_opname') %}
         <a href="/opname" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/opname' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>📋</span> Stok Opname
         </a>
+        {% endif %}
 
+        {% if user and (has_perm(user, 'stok_masuk') or has_perm(user, 'stok_keluar') or has_perm(user, 'penjualan')) %}
         <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Transaksi</div>
+        {% endif %}
+        {% if user and has_perm(user, 'stok_masuk') %}
         <a href="/stok/masuk" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/stok/masuk' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>📥</span> Stok Masuk
         </a>
+        {% endif %}
+        {% if user and has_perm(user, 'stok_keluar') %}
         <a href="/stok/keluar" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/stok/keluar' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>📤</span> Stok Keluar
         </a>
+        {% endif %}
+        {% if user and has_perm(user, 'penjualan') %}
         <a href="/penjualan" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/penjualan' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>💰</span> Penjualan
         </a>
+        {% endif %}
 
+        {% if user and (has_perm(user, 'hutang') or has_perm(user, 'laporan')) %}
         <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Keuangan</div>
+        {% endif %}
+        {% if user and has_perm(user, 'hutang') %}
         <a href="/hutang" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/hutang' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>💳</span> Hutang/Piutang
         </a>
-        {% if user and user.role in ['bos', 'og'] %}
+        {% endif %}
+        {% if user and has_perm(user, 'laporan') %}
         <a href="/laporan" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/laporan' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>📈</span> Laporan Keuntungan
         </a>
@@ -98,14 +114,14 @@
         </a>
         {% endif %}
 
-        {% if user and user.role in ['bos', 'og'] %}
+        {% if user and has_perm(user, 'audit_log') %}
         <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Sistem</div>
         <a href="/audit-log" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/audit-log' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>📋</span> Audit Log
         </a>
         {% endif %}
 
-        {% if user and user.role == 'bos' %}
+        {% if user and user.role in ['bos', 'og'] %}
         <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Admin</div>
         <a href="/users" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/users' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>👤</span> Kelola User
