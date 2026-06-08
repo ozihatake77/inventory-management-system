@@ -180,8 +180,10 @@
 
 {% block scripts %}
 <script>
-const ctx = document.getElementById('salesChart').getContext('2d');
-new Chart(ctx, {
+window.addEventListener('load', function() {
+    setTimeout(function() {
+        const ctx = document.getElementById('salesChart').getContext('2d');
+        new Chart(ctx, {
     type: 'bar',
     data: {
         labels: {{ chart_labels|tojson }},
@@ -211,6 +213,8 @@ new Chart(ctx, {
             }
         }
     }
+});
+    }, 300);
 });
 </script>
 {% endblock %}

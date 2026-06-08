@@ -422,6 +422,42 @@ def init_db():
                 db.execute("""INSERT INTO hutang (pelanggan_id, penjualan_id, jumlah, sudah_bayar, sisa, status, jatuh_tempo, keterangan)
                     VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)""", (pen_id, jumlah, sudah, sisa, status, tempo, f"Customer: {cust}"))
 
+            # Sample pelanggan
+            sample_pelanggan = [
+                ("Budi Santoso", "Jl. Merdeka No. 10, Jakarta", "081234567890", "budi@email.com"),
+                ("Siti Rahayu", "Jl. Sudirman No. 25, Bandung", "085678901234", "siti@email.com"),
+                ("Ahmad Hidayat", "Jl. Gatot Subroto No. 15, Surabaya", "087890123456", "ahmad@email.com"),
+                ("Dewi Lestari", "Jl. Diponegoro No. 8, Semarang", "089012345678", "dewi@email.com"),
+                ("Rudi Hermawan", "Jl. Ahmad Yani No. 33, Yogyakarta", "081123456789", "rudi@email.com"),
+            ]
+            for nama, alamat, hp, email in sample_pelanggan:
+                db.execute("INSERT INTO pelanggan (nama, alamat, hp, email) VALUES (?, ?, ?, ?)",
+                           (nama, alamat, hp, email))
+
+            # Sample stok masuk
+            sample_masuk = [
+                (1, 10, "Restock awal", 2), (2, 5, "Restock awal", 2), (3, 8, "Restock awal", 2),
+                (4, 6, "Restock awal", 2), (5, 15, "Restock awal", 2), (6, 20, "Restock awal", 2),
+                (7, 25, "Restock awal", 2), (8, 10, "Restock awal", 2), (9, 5, "Restock awal", 2),
+                (10, 30, "Restock awal", 2),
+            ]
+            for prod_id, qty, ket, user_id in sample_masuk:
+                days_ago = random.randint(1, 5)
+                date = (today - timedelta(days=days_ago)).strftime("%Y-%m-%d %H:%M:%S")
+                db.execute("INSERT INTO stok_masuk (produk_id, jumlah, keterangan, user_id, created_at) VALUES (?, ?, ?, ?, ?)",
+                           (prod_id, qty, ket, user_id, date))
+
+            # Sample stok keluar
+            sample_keluar = [
+                (1, 2, "Rusak/retur", 2), (6, 3, "Kadaluarsa sample", 2),
+                (10, 4, "Contoh display", 2),
+            ]
+            for prod_id, qty, ket, user_id in sample_keluar:
+                days_ago = random.randint(1, 3)
+                date = (today - timedelta(days=days_ago)).strftime("%Y-%m-%d %H:%M:%S")
+                db.execute("INSERT INTO stok_keluar (produk_id, jumlah, keterangan, user_id, created_at) VALUES (?, ?, ?, ?, ?)",
+                           (prod_id, qty, ket, user_id, date))
+
 init_db()
 
 # ── Helpers ─────────────────────────────────────────────────────────────
