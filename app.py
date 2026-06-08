@@ -713,6 +713,14 @@ def dashboard(request: Request):
             "SELECT COALESCE(SUM(total), 0), COALESCE(SUM(keuntungan), 0), COUNT(*) FROM penjualan WHERE DATE(created_at) = ?",
             (today,)).fetchone()
 
+        # Breakdown metode bayar hari ini
+        bayar_hari_ini = {}
+        for metode in ['tunai', 'transfer', 'hutang']:
+            row = db.execute(
+                "SELECT COALESCE(SUM(total), 0), COUNT(*) FROM penjualan WHERE DATE(created_at) = ? AND metode_bayar = ?",
+                (today, metode)).fetchone()
+            bayar_hari_ini[metode] = {'total': row[0], 'count': row[1]}
+
         bulan_ini = datetime.now().strftime("%Y-%m")
         penjualan_bulan = db.execute(
             "SELECT COALESCE(SUM(total), 0), COALESCE(SUM(keuntungan), 0), COUNT(*) FROM penjualan WHERE strftime('%Y-%m', created_at) = ?",
@@ -722,6 +730,14 @@ def dashboard(request: Request):
         penjualan_minggu = db.execute(
             "SELECT COALESCE(SUM(total), 0), COALESCE(SUM(keuntungan), 0), COUNT(*) FROM penjualan WHERE DATE(created_at) >= ?",
             (minggu_lalu,)).fetchone()
+
+        # Breakdown metode bayar minggu ini
+        bayar_minggu_ini = {}
+        for metode in ['tunai', 'transfer', 'hutang']:
+            row = db.execute(
+                "SELECT COALESCE(SUM(total), 0), COUNT(*) FROM penjualan WHERE DATE(created_at) >= ? AND metode_bayar = ?",
+                (minggu_lalu, metode)).fetchone()
+            bayar_minggu_ini[metode] = {'total': row[0], 'count': row[1]}
 
         produk_menipis = db.execute("""
             SELECT p.*, k.nama as kategori_nama FROM produk p
@@ -772,6 +788,7 @@ def dashboard(request: Request):
         "chart_labels": chart_labels, "chart_sales": chart_sales, "chart_profit": chart_profit,
         "top_produk": top_produk, "notif_count": notif_count, "notif_list": notif_list,
         "hutang_jatuh": hutang_jatuh,
+        "bayar_hari_ini": bayar_hari_ini, "bayar_minggu_ini": bayar_minggu_ini,
     })
 
 # ═══════════════════════════════════════════════════════════════════════

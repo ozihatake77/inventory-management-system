@@ -4,7 +4,7 @@
 
 {% block content %}
 <!-- Stats Cards -->
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
 
     <div class="bg-white rounded-xl shadow-sm border p-5">
         <div class="flex items-center justify-between">
@@ -18,6 +18,20 @@
             <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-2xl">💵</div>
         </div>
         <p class="text-xs text-gray-400 mt-2">{{ penjualan_hari_ini[2] }} transaksi</p>
+        <div class="mt-2 pt-2 border-t border-gray-100 space-y-1">
+            <div class="flex justify-between text-xs">
+                <span class="text-gray-500">💵 Cash</span>
+                <span class="font-medium text-green-600">{{ bayar_hari_ini.tunai.total|rupiah }}</span>
+            </div>
+            <div class="flex justify-between text-xs">
+                <span class="text-gray-500">🏦 Transfer</span>
+                <span class="font-medium text-blue-600">{{ bayar_hari_ini.transfer.total|rupiah }}</span>
+            </div>
+            <div class="flex justify-between text-xs">
+                <span class="text-gray-500">💳 Tempo</span>
+                <span class="font-medium text-orange-600">{{ bayar_hari_ini.hutang.total|rupiah }}</span>
+            </div>
+        </div>
     </div>
 
     <div class="bg-white rounded-xl shadow-sm border p-5">
@@ -32,6 +46,20 @@
             <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center text-2xl">📅</div>
         </div>
         <p class="text-xs text-gray-400 mt-2">{{ penjualan_minggu[2] }} transaksi</p>
+        <div class="mt-2 pt-2 border-t border-gray-100 space-y-1">
+            <div class="flex justify-between text-xs">
+                <span class="text-gray-500">💵 Cash</span>
+                <span class="font-medium text-green-600">{{ bayar_minggu_ini.tunai.total|rupiah }}</span>
+            </div>
+            <div class="flex justify-between text-xs">
+                <span class="text-gray-500">🏦 Transfer</span>
+                <span class="font-medium text-blue-600">{{ bayar_minggu_ini.transfer.total|rupiah }}</span>
+            </div>
+            <div class="flex justify-between text-xs">
+                <span class="text-gray-500">💳 Tempo</span>
+                <span class="font-medium text-orange-600">{{ bayar_minggu_ini.hutang.total|rupiah }}</span>
+            </div>
+        </div>
     </div>
 
     <div class="bg-white rounded-xl shadow-sm border p-5">
@@ -56,6 +84,15 @@
             </div>
             <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center text-2xl">⚠️</div>
         </div>
+    </div>
+
+    <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-sm p-5 text-white">
+        <p class="text-sm text-blue-100">📊 Ringkasan Bulan Ini</p>
+        <p class="text-2xl font-bold mt-2">{{ penjualan_bulan[0]|rupiah }}</p>
+        {% if has_perm(user, 'lihat_keuntungan') %}
+        <p class="text-xs text-green-200 mt-1">💰 Untung: {{ penjualan_bulan[1]|rupiah }}</p>
+        {% endif %}
+        <p class="text-xs text-blue-200 mt-2">{{ penjualan_bulan[2] }} transaksi</p>
     </div>
 </div>
 
@@ -158,26 +195,6 @@
     </div>
 </div>
 
-<!-- Monthly Summary -->
-<div class="mt-6 bg-white rounded-xl shadow-sm border p-5">
-    <h3 class="font-semibold text-gray-800 mb-4">📊 Ringkasan Bulan Ini</h3>
-    <div class="grid grid-cols-1 sm:grid-cols-{% if has_perm(user, 'lihat_keuntungan') %}3{% else %}2{% endif %} gap-4">
-        <div class="text-center p-4 bg-blue-50 rounded-xl">
-            <p class="text-sm text-gray-500">Total Penjualan</p>
-            <p class="text-2xl font-bold text-blue-600">{{ penjualan_bulan[0]|rupiah }}</p>
-        </div>
-        {% if has_perm(user, 'lihat_keuntungan') %}
-        <div class="text-center p-4 bg-green-50 rounded-xl">
-            <p class="text-sm text-gray-500">Total Keuntungan</p>
-            <p class="text-2xl font-bold text-green-600">{{ penjualan_bulan[1]|rupiah }}</p>
-        </div>
-        {% endif %}
-        <div class="text-center p-4 bg-purple-50 rounded-xl">
-            <p class="text-sm text-gray-500">Jumlah Transaksi</p>
-            <p class="text-2xl font-bold text-purple-600">{{ penjualan_bulan[2] }}</p>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block scripts %}

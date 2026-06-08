@@ -86,6 +86,7 @@
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Harga</th>
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Total</th>
                     <th class="px-4 py-3 text-center font-medium text-gray-600">Bayar</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Keterangan</th>
                     {% if has_perm(user, 'lihat_keuntungan') %}
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Untung</th>
                     {% endif %}
@@ -110,6 +111,7 @@
                             {{ p.metode_bayar|capitalize if p.metode_bayar else 'Tunai' }}
                         </span>
                     </td>
+                    <td class="px-4 py-3 text-gray-500 text-xs">{{ p.keterangan or '-' }}</td>
                     {% if has_perm(user, 'lihat_keuntungan') %}
                     <td class="px-4 py-3 text-right font-medium text-green-600">{{ p.keuntungan|rupiah }}</td>
                     {% endif %}
