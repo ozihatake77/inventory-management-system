@@ -77,20 +77,36 @@
         <a href="/hutang" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/hutang' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>💳</span> Hutang/Piutang
         </a>
+        {% if user and user.role in ['bos', 'og'] %}
         <a href="/laporan" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/laporan' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>📈</span> Laporan Keuntungan
         </a>
+        {% endif %}
+
+        {% if user and user.role in ['bos', 'og'] %}
+        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Approval</div>
+        <a href="/approval" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/approval' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>✅</span> Approval
+            {% if approval_pending_count is defined and approval_pending_count > 0 %}
+            <span class="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">{{ approval_pending_count }}</span>
+            {% endif %}
+        </a>
+        {% endif %}
 
         {% if user and user.role == 'bos' %}
         <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Admin</div>
         <a href="/users" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/users' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>👤</span> Kelola User
         </a>
+        {% endif %}
+
+        {% if user and user.role in ['bos', 'og'] %}
         <a href="/backup" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/backup' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>💾</span> Backup Data
         </a>
         {% endif %}
 
+        {% if user and user.role in ['bos', 'og'] %}
         <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Export</div>
         <a href="/export/produk" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition">
             <span>📥</span> Produk (.xlsx)
@@ -101,6 +117,7 @@
         <a href="/export/hutang" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition">
             <span>📥</span> Hutang (.xlsx)
         </a>
+        {% endif %}
     </nav>
 
     <!-- Sidebar Footer -->
@@ -131,7 +148,7 @@
                     {% endif %}
                 </a>
                 <div class="hidden sm:flex items-center gap-2 text-sm">
-                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold {% if user.role == 'bos' %}bg-purple-100 text-purple-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold {% if user.role == 'bos' %}bg-red-100 text-red-700{% elif user.role == 'og' %}bg-orange-100 text-orange-700{% else %}bg-blue-100 text-blue-700{% endif %}">
                         {{ user.role|upper }}
                     </span>
                     <span class="text-gray-600 font-medium">{{ user.nama }}</span>

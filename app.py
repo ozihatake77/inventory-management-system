@@ -53,7 +53,7 @@ def init_db():
             username TEXT NOT NULL UNIQUE,
             password_hash TEXT NOT NULL,
             nama TEXT NOT NULL,
-            role TEXT NOT NULL CHECK(role IN ('bos', 'karyawan')),
+            role TEXT NOT NULL CHECK(role IN ('bos', 'og', 'karyawan')),
             aktif INTEGER DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
@@ -188,7 +188,46 @@ def init_db():
             ukuran INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS approval (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipe TEXT NOT NULL DEFAULT 'diskon',
+            produk_id INTEGER,
+            harga_diminta REAL NOT NULL,
+            harga_jual REAL NOT NULL,
+            harga_bottom REAL NOT NULL,
+            karyawan_id INTEGER NOT NULL,
+            status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected')),
+            approved_by INTEGER,
+            alasan TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (produk_id) REFERENCES produk(id) ON DELETE CASCADE,
+            FOREIGN KEY (karyawan_id) REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
+        );
         """)
+
+        # ── Migrations for existing DBs ────────────────────────────────
+        for col in ['harga_bottom']:
+            try: db.execute(f"ALTER TABLE produk ADD COLUMN {col} REAL DEFAULT 0")
+            except: pass
+        for col in ['nama_customer', 'alamat_customer', 'hp_customer', 'email_customer']:
+            try: db.execute(f"ALTER TABLE penjualan ADD COLUMN {col} TEXT DEFAULT ''")
+            except: pass
+        try: db.execute("ALTER TABLE penjualan ADD COLUMN approval_id INTEGER")
+        except: pass
+        # Migrate role CHECK if needed (add 'og')
+        try:
+            db.execute("ALTER TABLE users RENAME TO _users_migrate")
+            db.execute("""CREATE TABLE users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL, nama TEXT NOT NULL,
+                role TEXT NOT NULL CHECK(role IN ('bos', 'og', 'karyawan')),
+                aktif INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+            db.execute("INSERT INTO users SELECT * FROM _users_migrate")
+            db.execute("DROP TABLE _users_migrate")
+        except: pass
 
         # Seed default admin if not exists
         admin = db.execute("SELECT * FROM users WHERE username='admin'").fetchone()
@@ -263,6 +302,18 @@ def require_bos(f):
         if not user:
             return RedirectResponse("/login", status_code=303)
         if user["role"] != "bos":
+            return RedirectResponse("/?error=unauthorized", status_code=303)
+        request.state.user = user
+        return f(request, *args, **kwargs)
+    return decorated
+
+def require_bos_or_og(f):
+    @wraps(f)
+    def decorated(request: Request, *args, **kwargs):
+        user = get_current_user(request)
+        if not user:
+            return RedirectResponse("/login", status_code=303)
+        if user["role"] not in ("bos", "og"):
             return RedirectResponse("/?error=unauthorized", status_code=303)
         request.state.user = user
         return f(request, *args, **kwargs)
@@ -439,8 +490,8 @@ def produk_list(request: Request, q: str = "", kategori: int = 0):
         query = "SELECT p.*, k.nama as kategori_nama FROM produk p LEFT JOIN kategori k ON p.kategori_id = k.id WHERE 1=1"
         params = []
         if q:
-            query += " AND (p.nama LIKE ? OR p.kode LIKE ? OR p.barcode LIKE ?)"
-            params.extend([f"%{q}%", f"%{q}%", f"%{q}%"])
+            query += " AND (p.nama LIKE ? OR p.barcode LIKE ?)"
+            params.extend([f"%{q}%", f"%{q}%"])
         if kategori:
             query += " AND p.kategori_id = ?"
             params.append(kategori)
@@ -460,44 +511,60 @@ def api_produk_barcode(request: Request, barcode: str):
     if produk:
         return JSONResponse({"found": True, "id": produk["id"], "kode": produk["kode"],
                              "nama": produk["nama"], "harga_jual": produk["harga_jual"],
-                             "stok": produk["stok"]})
+                             "harga_bottom": produk["harga_bottom"] or 0, "stok": produk["stok"]})
     return JSONResponse({"found": False})
+
+@app.get("/api/produk/{id}")
+@require_auth
+def api_produk_detail(request: Request, id: int):
+    with get_db() as db:
+        produk = db.execute("SELECT id, nama, kode, harga_jual, harga_bottom, harga_modal, stok FROM produk WHERE id = ?", (id,)).fetchone()
+    if not produk:
+        return JSONResponse({"found": False})
+    return JSONResponse({
+        "found": True, "id": produk["id"], "nama": produk["nama"],
+        "harga_jual": produk["harga_jual"], "harga_bottom": produk["harga_bottom"] or 0,
+        "harga_modal": produk["harga_modal"], "stok": produk["stok"]
+    })
 
 @app.post("/produk/tambah")
 @require_auth
-def produk_tambah(request: Request, kode: str = Form(...), barcode: str = Form(""),
+def produk_tambah(request: Request, barcode: str = Form(""),
                   nama: str = Form(...), kategori_id: int = Form(0),
                   harga_modal: float = Form(0), harga_jual: float = Form(0),
+                  harga_bottom: float = Form(0),
                   stok: int = Form(0), stok_minimum: int = Form(5), satuan: str = Form("pcs")):
     with get_db() as db:
+        last = db.execute("SELECT id FROM produk ORDER BY id DESC LIMIT 1").fetchone()
+        kode = f"P{str((last['id'] if last else 0) + 1).zfill(4)}"
         db.execute("""
-            INSERT INTO produk (kode, barcode, nama, kategori_id, harga_modal, harga_jual, stok, stok_minimum, satuan)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (kode, barcode, nama, kategori_id if kategori_id else None, harga_modal, harga_jual, stok, stok_minimum, satuan))
+            INSERT INTO produk (kode, barcode, nama, kategori_id, harga_modal, harga_jual, harga_bottom, stok, stok_minimum, satuan)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (kode, barcode, nama, kategori_id if kategori_id else None, harga_modal, harga_jual, harga_bottom, stok, stok_minimum, satuan))
     return RedirectResponse("/produk", status_code=303)
 
 @app.post("/produk/edit/{id}")
 @require_auth
-def produk_edit(request: Request, id: int, kode: str = Form(...), barcode: str = Form(""),
+def produk_edit(request: Request, id: int, barcode: str = Form(""),
                 nama: str = Form(...), kategori_id: int = Form(0),
                 harga_modal: float = Form(0), harga_jual: float = Form(0),
+                harga_bottom: float = Form(0),
                 stok_minimum: int = Form(5), satuan: str = Form("pcs")):
     with get_db() as db:
         old = db.execute("SELECT * FROM produk WHERE id=?", (id,)).fetchone()
-        # Track price changes
         if old and (old["harga_modal"] != harga_modal or old["harga_jual"] != harga_jual):
             db.execute("""
                 INSERT INTO riwayat_harga (produk_id, harga_modal_lama, harga_jual_lama, harga_modal_baru, harga_jual_baru, user_id)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (id, old["harga_modal"], old["harga_jual"], harga_modal, harga_jual, request.state.user["id"]))
         db.execute("""
-            UPDATE produk SET kode=?, barcode=?, nama=?, kategori_id=?, harga_modal=?,
-            harga_jual=?, stok_minimum=?, satuan=?, updated_at=CURRENT_TIMESTAMP WHERE id=?
-        """, (kode, barcode, nama, kategori_id if kategori_id else None, harga_modal, harga_jual, stok_minimum, satuan, id))
+            UPDATE produk SET barcode=?, nama=?, kategori_id=?, harga_modal=?, harga_jual=?,
+            harga_bottom=?, stok_minimum=?, satuan=?, updated_at=CURRENT_TIMESTAMP WHERE id=?
+        """, (barcode, nama, kategori_id if kategori_id else None, harga_modal, harga_jual, harga_bottom, stok_minimum, satuan, id))
     return RedirectResponse("/produk", status_code=303)
 
 @app.get("/produk/hapus/{id}")
-@require_bos
+@require_bos_or_og
 def produk_hapus(request: Request, id: int):
     with get_db() as db:
         db.execute("DELETE FROM produk WHERE id=?", (id,))
@@ -591,6 +658,78 @@ def stok_keluar(request: Request, produk_id: int = Form(...), jumlah: int = Form
     return RedirectResponse("/stok/keluar", status_code=303)
 
 # ═══════════════════════════════════════════════════════════════════════
+# ROUTES: APPROVAL
+# ═══════════════════════════════════════════════════════════════════════
+@app.post("/approval/request")
+@require_auth
+def approval_request_form(request: Request, produk_id: int = Form(...),
+                          harga_diminta: float = Form(...), alasan: str = Form("")):
+    user = request.state.user
+    with get_db() as db:
+        produk = db.execute("SELECT * FROM produk WHERE id=?", (produk_id,)).fetchone()
+        if not produk:
+            return RedirectResponse("/penjualan?error=produk_not_found", status_code=303)
+        db.execute("""
+            INSERT INTO approval (tipe, produk_id, harga_diminta, harga_jual, harga_bottom, karyawan_id, alasan)
+            VALUES ('diskon', ?, ?, ?, ?, ?, ?)
+        """, (produk_id, harga_diminta, produk["harga_jual"], produk["harga_bottom"] or 0, user["id"], alasan))
+        # Notify all bos and OG
+        db.execute("""
+            INSERT INTO notifikasi (tipe, pesan, link) VALUES ('approval', ?, '/approval')
+        """, (f"Persetujuan diskon: {produk['nama']} - harga Rp {harga_diminta:,.0f} (oleh {user['nama']})",))
+    return RedirectResponse("/penjualan?approval=sent", status_code=303)
+
+@app.get("/approval", response_class=HTMLResponse)
+@require_bos_or_og
+def approval_page(request: Request):
+    with get_db() as db:
+        approvals = db.execute("""
+            SELECT a.*, p.nama as produk_nama, p.harga_jual, p.harga_bottom, p.harga_modal,
+                   u.nama as karyawan_nama, au.nama as approver_nama
+            FROM approval a
+            JOIN produk p ON a.produk_id = p.id
+            JOIN users u ON a.karyawan_id = u.id
+            LEFT JOIN users au ON a.approved_by = au.id
+            ORDER BY a.created_at DESC LIMIT 50
+        """).fetchall()
+    return templates.TemplateResponse(request, "approval.html", {
+        "request": request, "user": request.state.user, "approvals": approvals
+    })
+
+@app.post("/approval/approve/{id}")
+@require_bos_or_og
+def approval_approve(request: Request, id: int):
+    user = request.state.user
+    with get_db() as db:
+        approval = db.execute("SELECT * FROM approval WHERE id=? AND status='pending'", (id,)).fetchone()
+        if approval:
+            db.execute("UPDATE approval SET status='approved', approved_by=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                       (user["id"], id))
+            db.execute("INSERT INTO notifikasi (tipe, pesan, link) VALUES ('approval_done', ?, '/penjualan')",
+                       (f"Diskon DISETUJUI oleh {user['nama']}: Rp {approval['harga_diminta']:,.0f}",))
+    return RedirectResponse("/approval", status_code=303)
+
+@app.post("/approval/reject/{id}")
+@require_bos_or_og
+def approval_reject(request: Request, id: int):
+    user = request.state.user
+    with get_db() as db:
+        approval = db.execute("SELECT * FROM approval WHERE id=? AND status='pending'", (id,)).fetchone()
+        if approval:
+            db.execute("UPDATE approval SET status='rejected', approved_by=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                       (user["id"], id))
+            db.execute("INSERT INTO notifikasi (tipe, pesan, link) VALUES ('approval_done', ?, '/penjualan')",
+                       (f"Diskon DITOLAK oleh {user['nama']}: Rp {approval['harga_diminta']:,.0f}",))
+    return RedirectResponse("/approval", status_code=303)
+
+@app.get("/api/approvals/pending")
+@require_auth
+def api_pending_approvals(request: Request):
+    with get_db() as db:
+        count = db.execute("SELECT COUNT(*) FROM approval WHERE status='pending'").fetchone()[0]
+    return JSONResponse({"count": count})
+
+# ═══════════════════════════════════════════════════════════════════════
 # ROUTES: PENJUALAN
 # ═══════════════════════════════════════════════════════════════════════
 @app.get("/penjualan", response_class=HTMLResponse)
@@ -608,9 +747,8 @@ def penjualan_page(request: Request, periode: str = "hari"):
 
         penjualan = db.execute(f"""
             SELECT pen.*, pr.nama as produk_nama, pr.kode as produk_kode,
-                   pl.nama as pelanggan_nama, u.nama as user_nama
+                   u.nama as user_nama
             FROM penjualan pen JOIN produk pr ON pen.produk_id = pr.id
-            LEFT JOIN pelanggan pl ON pen.pelanggan_id = pl.id
             LEFT JOIN users u ON pen.user_id = u.id
             WHERE {where} ORDER BY pen.created_at DESC
         """).fetchall()
@@ -621,32 +759,46 @@ def penjualan_page(request: Request, periode: str = "hari"):
         """).fetchone()
 
         produk = db.execute("SELECT * FROM produk WHERE stok > 0 ORDER BY nama").fetchall()
-        pelanggan = db.execute("SELECT * FROM pelanggan ORDER BY nama").fetchall()
+
+        # Get pending approvals for bos/og
+        approvals = []
+        if request.state.user["role"] in ("bos", "og"):
+            approvals = db.execute("""
+                SELECT a.*, p.nama as produk_nama, u.nama as requested_by
+                FROM approval a JOIN produk p ON a.produk_id = p.id
+                JOIN users u ON a.karyawan_id = u.id
+                WHERE a.status = 'pending' ORDER BY a.created_at DESC
+            """).fetchall()
 
     return templates.TemplateResponse(request, "penjualan.html", {
         "request": request, "user": request.state.user, "penjualan": penjualan,
-        "totals": totals, "periode": periode, "produk": produk, "pelanggan": pelanggan
+        "totals": totals, "periode": periode, "produk": produk, "approvals": approvals
     })
 
 @app.post("/penjualan/tambah")
 @require_auth
 def penjualan_tambah(request: Request, produk_id: int = Form(...), jumlah: int = Form(...),
-                     pelanggan_id: int = Form(0), harga_jual_override: float = Form(0),
-                     keterangan: str = Form(""), metode_bayar: str = Form("tunai")):
+                     harga_jual_used: float = Form(0),
+                     nama_customer: str = Form("-"), alamat_customer: str = Form(""),
+                     hp_customer: str = Form(""), email_customer: str = Form(""),
+                     keterangan: str = Form(""), metode_bayar: str = Form("tunai"),
+                     approval_id: int = Form(0)):
     with get_db() as db:
         produk = db.execute("SELECT * FROM produk WHERE id = ?", (produk_id,)).fetchone()
         if produk["stok"] < jumlah:
             return RedirectResponse("/penjualan?error=stok_kurang", status_code=303)
 
-        harga = harga_jual_override if harga_jual_override > 0 else produk["harga_jual"]
+        harga = harga_jual_used if harga_jual_used > 0 else produk["harga_jual"]
         total = harga * jumlah
         keuntungan = (harga - produk["harga_modal"]) * jumlah
 
         db.execute("""
-            INSERT INTO penjualan (pelanggan_id, user_id, produk_id, jumlah, harga_satuan, harga_modal, total, keuntungan, keterangan)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (pelanggan_id if pelanggan_id else None, request.state.user["id"], produk_id, jumlah,
-              harga, produk["harga_modal"], total, keuntungan, keterangan))
+            INSERT INTO penjualan (user_id, produk_id, jumlah, harga_satuan, harga_modal, total, keuntungan,
+                                   keterangan, nama_customer, alamat_customer, hp_customer, email_customer, approval_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (request.state.user["id"], produk_id, jumlah, harga, produk["harga_modal"], total, keuntungan,
+              keterangan, nama_customer, alamat_customer, hp_customer, email_customer,
+              approval_id if approval_id else None))
 
         db.execute("UPDATE produk SET stok = stok - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (jumlah, produk_id))
 
@@ -655,34 +807,28 @@ def penjualan_tambah(request: Request, produk_id: int = Form(...), jumlah: int =
             VALUES (?, 'keluar', ?, ?, ?, ?)
         """, (produk_id, jumlah, harga, request.state.user["id"], f"Penjualan - {keterangan}" if keterangan else "Penjualan"))
 
-        # Create hutang if not cash
-        if metode_bayar == "hutang" and pelanggan_id:
-            jatuh_tempo = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
-            penjualan_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
-            db.execute("""
-                INSERT INTO hutang (pelanggan_id, penjualan_id, jumlah, sisa, status, jatuh_tempo)
-                VALUES (?, ?, ?, ?, 'belum', ?)
-            """, (pelanggan_id, penjualan_id, total, total, jatuh_tempo))
-            add_notif("hutang", f"Hutang baru: {total|rupiah} - jatuh tempo {jatuh_tempo}", "/hutang")
+        penjualan_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        # Notification
+        db.execute("INSERT INTO notifikasi (tipe, pesan, link) VALUES ('penjualan', ?, ?)",
+                   (f"Penjualan: {produk['nama']} x{jumlah} = Rp {total:,.0f}", f"/penjualan/nota/{penjualan_id}"))
 
     check_low_stock()
-    return RedirectResponse("/penjualan", status_code=303)
+    return RedirectResponse(f"/penjualan/nota/{penjualan_id}?print=1", status_code=303)
 
 @app.get("/penjualan/nota/{id}", response_class=HTMLResponse)
 @require_auth
-def nota_page(request: Request, id: int):
+def nota_page(request: Request, id: int, print: int = 0):
     with get_db() as db:
         pen = db.execute("""
             SELECT pen.*, pr.nama as produk_nama, pr.kode as produk_kode,
-                   pl.nama as pelanggan_nama, pl.alamat as pelanggan_alamat, pl.telepon as pelanggan_telp,
                    u.nama as user_nama
             FROM penjualan pen JOIN produk pr ON pen.produk_id = pr.id
-            LEFT JOIN pelanggan pl ON pen.pelanggan_id = pl.id
             LEFT JOIN users u ON pen.user_id = u.id
             WHERE pen.id = ?
         """, (id,)).fetchone()
-    return templates.TemplateResponse(request, "nota.html", {
-        "request": request, "user": request.state.user, "pen": pen
+    return templates.TemplateResponse(request, "invoice.html", {
+        "request": request, "user": request.state.user, "pen": pen, "auto_print": print
     })
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -819,7 +965,7 @@ def opname_simpan(request: Request, produk_id: int = Form(...), stok_fisik: int 
 # ROUTES: LAPORAN
 # ═══════════════════════════════════════════════════════════════════════
 @app.get("/laporan", response_class=HTMLResponse)
-@require_auth
+@require_bos_or_og
 def laporan_page(request: Request):
     with get_db() as db:
         bulan_ini = datetime.now().strftime("%Y-%m")
@@ -878,7 +1024,7 @@ def kategori_tambah(request: Request, nama: str = Form(...)):
     return RedirectResponse("/kategori", status_code=303)
 
 @app.get("/kategori/hapus/{id}")
-@require_bos
+@require_bos_or_og
 def kategori_hapus(request: Request, id: int):
     with get_db() as db:
         db.execute("DELETE FROM kategori WHERE id=?", (id,))
@@ -930,7 +1076,7 @@ def users_hapus(request: Request, id: int):
 # ROUTES: BACKUP
 # ═══════════════════════════════════════════════════════════════════════
 @app.get("/backup", response_class=HTMLResponse)
-@require_bos
+@require_bos_or_og
 def backup_page(request: Request):
     with get_db() as db:
         backups = db.execute("SELECT * FROM backups ORDER BY created_at DESC").fetchall()
@@ -939,13 +1085,14 @@ def backup_page(request: Request):
     })
 
 @app.post("/backup/buat")
-@require_bos
+@require_bos_or_og
 def backup_buat(request: Request):
+
     auto_backup()
     return RedirectResponse("/backup", status_code=303)
 
 @app.get("/backup/download/{filename}")
-@require_bos
+@require_bos_or_og
 def backup_download(request: Request, filename: str):
     filepath = os.path.join(BACKUP_DIR, filename)
     if os.path.exists(filepath):
@@ -953,7 +1100,7 @@ def backup_download(request: Request, filename: str):
     return RedirectResponse("/backup", status_code=303)
 
 @app.get("/backup/restore/{filename}")
-@require_bos
+@require_bos_or_og
 def backup_restore(request: Request, filename: str):
     filepath = os.path.join(BACKUP_DIR, filename)
     if os.path.exists(filepath):

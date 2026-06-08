@@ -14,13 +14,28 @@
     {% for n in notif %}
     <div class="bg-white rounded-xl shadow-sm border p-4 flex items-start gap-3 {% if not n.dibaca %}border-l-4 border-l-blue-500{% endif %}">
         <span class="text-2xl">
-            {% if n.tipe == 'stok_menipis' %}⚠️{% elif n.tipe == 'stok_habis' %}🚨{% elif n.tipe == 'hutang' %}💳{% else %}📢{% endif %}
+            {% if n.tipe == 'stok_menipis' %}⚠️{% elif n.tipe == 'stok_habis' %}🚨{% elif n.tipe == 'hutang' %}💳{% elif n.tipe == 'approval' %}✅{% else %}📢{% endif %}
         </span>
         <div class="flex-1">
+            <div class="flex items-center gap-2 mb-1">
+                {% if n.tipe == 'approval' %}
+                <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">Approval</span>
+                {% elif n.tipe == 'stok_menipis' %}
+                <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">Stok Menipis</span>
+                {% elif n.tipe == 'stok_habis' %}
+                <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Stok Habis</span>
+                {% elif n.tipe == 'hutang' %}
+                <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Hutang</span>
+                {% else %}
+                <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">Info</span>
+                {% endif %}
+            </div>
             <p class="text-sm {% if not n.dibaca %}font-medium{% else %}text-gray-600{% endif %}">{{ n.pesan }}</p>
             <p class="text-xs text-gray-400 mt-1">{{ n.created_at|format_date }}</p>
         </div>
-        {% if n.link %}
+        {% if n.tipe == 'approval' %}
+        <a href="/approval" class="px-3 py-1 bg-purple-100 text-purple-700 rounded text-xs hover:bg-purple-200 font-medium">Lihat Approval →</a>
+        {% elif n.link %}
         <a href="{{ n.link }}" class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs hover:bg-gray-200">Lihat →</a>
         {% endif %}
     </div>

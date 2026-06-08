@@ -3,6 +3,34 @@
 {% block header %}💰 Penjualan{% endblock %}
 
 {% block content %}
+{% if user.role in ['bos', 'og'] and approvals %}
+<!-- Pending Approvals Section -->
+<div class="mb-6">
+    <h3 class="text-sm font-semibold text-gray-700 mb-3">✅ Approval Menunggu</h3>
+    <div class="space-y-2">
+        {% for a in approvals %}
+        <div class="bg-white rounded-xl shadow-sm border border-purple-200 p-4">
+            <div class="flex items-center justify-between">
+                <div class="flex-1">
+                    <p class="text-sm font-medium">{{ a.produk_nama }} x{{ a.jumlah }}</p>
+                    <p class="text-xs text-gray-500">Harga Normal: {{ a.harga_normal|rupiah }} → Diskon: {{ a.harga_diskon|rupiah }}</p>
+                    <p class="text-xs text-gray-400">Alasan: {{ a.alasan }} | Diminta oleh: {{ a.requested_by }} | {{ a.created_at|format_date }}</p>
+                </div>
+                <div class="flex gap-2">
+                    <form method="post" action="/approval/approve/{{ a.id }}" class="inline">
+                        <button type="submit" class="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700">✅ Setuju</button>
+                    </form>
+                    <form method="post" action="/approval/reject/{{ a.id }}" class="inline">
+                        <button type="submit" class="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs hover:bg-red-700">❌ Tolak</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
     <div class="flex gap-2">
         <a href="/penjualan?periode=hari" class="px-3 py-1.5 rounded-lg text-sm {% if periode == 'hari' %}bg-blue-600 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">Hari Ini</a>
@@ -38,24 +66,32 @@
             <thead class="bg-gray-50 border-b">
                 <tr>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Tanggal</th>
-                    <th class="px-4 py-3 text-left font-medium text-gray-600">Kode</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Produk</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Customer</th>
                     <th class="px-4 py-3 text-center font-medium text-gray-600">Jumlah</th>
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Harga</th>
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Total</th>
+                    {% if user.role in ['bos', 'og'] %}
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Untung</th>
+                    {% endif %}
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Aksi</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
                 {% for p in penjualan %}
                 <tr class="hover:bg-gray-50">
                     <td class="px-4 py-3 text-gray-500">{{ p.created_at|format_date }}</td>
-                    <td class="px-4 py-3 font-mono text-xs">{{ p.produk_kode }}</td>
                     <td class="px-4 py-3 font-medium">{{ p.produk_nama }}</td>
+                    <td class="px-4 py-3 text-gray-500">{{ p.nama_customer or '-' }}</td>
                     <td class="px-4 py-3 text-center">{{ p.jumlah }}</td>
                     <td class="px-4 py-3 text-right">{{ p.harga_satuan|rupiah }}</td>
                     <td class="px-4 py-3 text-right font-medium text-blue-600">{{ p.total|rupiah }}</td>
+                    {% if user.role in ['bos', 'og'] %}
                     <td class="px-4 py-3 text-right font-medium text-green-600">{{ p.keuntungan|rupiah }}</td>
+                    {% endif %}
+                    <td class="px-4 py-3 text-center">
+                        <a href="/penjualan/nota/{{ p.id }}" target="_blank" class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200">🖨️ Nota</a>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -67,34 +103,143 @@
 </div>
 
 <!-- Modal Jual -->
-<div id="modalJual" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md">
+<div id="modalJual" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" x-data="{
+    selectedProduk: null,
+    hargaJual: 0,
+    hargaBottom: 0,
+    showDiskon: false,
+    hargaDiskon: 0,
+    alasanDiskon: '',
+    approvalSent: false,
+    metodeBayar: 'tunai',
+    namaCustomer: '-',
+    alamatCustomer: '',
+    hpCustomer: '',
+    emailCustomer: '',
+    jumlah: 1,
+    async fetchProduk(id) {
+        if (!id) { this.selectedProduk = null; return; }
+        const resp = await fetch('/api/produk/' + id);
+        const data = await resp.json();
+        this.selectedProduk = data;
+        this.hargaJual = data.harga_jual;
+        this.hargaBottom = data.harga_bottom || 0;
+        this.showDiskon = false;
+        this.approvalSent = false;
+        this.hargaDiskon = 0;
+    },
+    async mintaApproval() {
+        if (this.hargaDiskon < this.hargaBottom) {
+            alert('Harga diskon tidak boleh lebih rendah dari harga bottom (' + this.hargaBottom + ')');
+            return;
+        }
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/approval/request';
+        const fields = {
+            'produk_id': this.selectedProduk.id,
+            'harga_diminta': this.hargaDiskon,
+            'alasan': this.alasanDiskon
+        };
+        for (const [key, val] of Object.entries(fields)) {
+            const input = document.createElement('input');
+            input.type = 'hidden'; input.name = key; input.value = val;
+            form.appendChild(input);
+        }
+        document.body.appendChild(form);
+        form.submit();
+    }
+}">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div class="p-6">
             <h3 class="text-lg font-bold mb-4">💰 Catat Penjualan</h3>
             <form method="post" action="/penjualan/tambah" class="space-y-3">
+                <!-- Product Selection -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Produk</label>
-                    <select name="produk_id" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                    <select name="produk_id" required class="w-full px-3 py-2 border rounded-lg text-sm"
+                            x-model="selectedProduk" @change="fetchProduk($event.target.value)">
                         <option value="">Pilih produk...</option>
                         {% for p in produk %}{% if p.stok > 0 %}
-                        <option value="{{ p.id }}">{{ p.nama }} (stok: {{ p.stok }}, harga: {{ p.harga_jual|rupiah }})</option>
+                        <option value="{{ p.id }}">{{ p.nama }} (stok: {{ p.stok }})</option>
                         {% endif %}{% endfor %}
                     </select>
                 </div>
+
+                <!-- Jumlah -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Jumlah</label>
-                    <input name="jumlah" type="number" min="1" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                    <input name="jumlah" type="number" min="1" x-model="jumlah" required class="w-full px-3 py-2 border rounded-lg text-sm">
                 </div>
+
+                <!-- Harga Jual (read-only) -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Harga Jual (isi 0 = pakai harga default)</label>
-                    <input name="harga_jual_override" type="number" value="0" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Harga Jual</label>
+                    <div class="flex items-center gap-2">
+                        <input type="text" :value="hargaJual" readonly class="flex-1 px-3 py-2 border rounded-lg text-sm bg-gray-50 font-medium text-green-600">
+                        <button type="button" @click="showDiskon = !showDiskon" class="px-3 py-2 bg-orange-100 text-orange-700 rounded-lg text-sm hover:bg-orange-200">💰 Diskon</button>
+                    </div>
+                    <input type="hidden" name="harga_jual_used" :value="showDiskon && hargaDiskon > 0 ? hargaDiskon : hargaJual">
+                    <input type="hidden" name="approval_id" value="0">
                 </div>
+
+                <!-- Diskon Section -->
+                <div x-show="showDiskon" x-cloak class="bg-orange-50 border border-orange-200 rounded-lg p-3 space-y-2">
+                    <label class="block text-sm font-medium text-orange-700 mb-1">Harga Diskon</label>
+                    <input type="number" x-model="hargaDiskon" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Masukkan harga diskon">
+                    <p x-show="hargaDiskon > 0 && hargaDiskon < hargaBottom" class="text-xs text-red-500">⚠️ Harga diskon di bawah harga bottom!</p>
+                    <label class="block text-sm font-medium text-orange-700 mb-1">Alasan Diskon</label>
+                    <textarea x-model="alasanDiskon" rows="2" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Alasan pemberian diskon..."></textarea>
+                    <div class="flex gap-2">
+                        <button type="button" @click="mintaApproval()" x-show="!approvalSent" class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">📤 Minta Persetujuan</button>
+                        <span x-show="approvalSent" class="px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg text-sm font-medium">⏳ Menunggu persetujuan Bos/OG</span>
+                    </div>
+                    <input type="hidden" name="harga_diskon" :value="hargaDiskon">
+                    <input type="hidden" name="alasan_diskon" :value="alasanDiskon">
+                </div>
+
+                <!-- Customer Info -->
+                <div class="border-t pt-3">
+                    <p class="text-sm font-medium text-gray-700 mb-2">👤 Info Customer</p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Nama <span class="text-red-500">*</span></label>
+                            <input name="nama_customer" x-model="namaCustomer" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">No HP</label>
+                            <input name="hp_customer" x-model="hpCustomer" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 mt-2">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Alamat</label>
+                            <input name="alamat_customer" x-model="alamatCustomer" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Email</label>
+                            <input name="email_customer" x-model="emailCustomer" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Metode Bayar -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Metode Bayar</label>
+                    <select name="metode_bayar" x-model="metodeBayar" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        <option value="tunai">Tunai</option>
+                        <option value="hutang">Hutang</option>
+                    </select>
+                </div>
+
+                <!-- Keterangan -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Keterangan</label>
-                    <input name="keterangan" placeholder="Nama pembeli, dll" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    <input name="keterangan" placeholder="Catatan tambahan..." class="w-full px-3 py-2 border rounded-lg text-sm">
                 </div>
+
                 <div class="flex gap-2 pt-2">
-                    <button type="submit" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">💰 Simpan</button>
+                    <button type="submit" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">💰 Simpan & Cetak Nota</button>
                     <button type="button" onclick="document.getElementById('modalJual').classList.add('hidden')"
                             class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">Batal</button>
                 </div>

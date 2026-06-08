@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Persetujuan Diskon{% endblock %}
+{% block header %}✅ Persetujuan Diskon{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    {% if approvals %}
+    {% for a in approvals %}
+    <div class="bg-white rounded-xl shadow-sm border p-4 
+                {% if a.status == 'pending' %}border-l-4 border-l-yellow-500{% elif a.status == 'approved' %}border-l-4 border-l-green-500{% else %}border-l-4 border-l-red-500{% endif %}">
+        <div class="flex flex-col sm:flex-row justify-between items-start gap-3">
+            <div class="flex-1">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-lg font-bold">{{ a.produk_nama }}</span>
+                    {% if a.status == 'pending' %}
+                    <span class="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">⏳ Menunggu</span>
+                    {% elif a.status == 'approved' %}
+                    <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">✅ Disetujui</span>
+                    {% else %}
+                    <span class="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">❌ Ditolak</span>
+                    {% endif %}
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                    <div>
+                        <p class="text-gray-500">Harga Jual</p>
+                        <p class="font-medium">Rp {{ "{:,.0f}".format(a.harga_jual).replace(",", ".") }}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">Harga Bottom</p>
+                        <p class="font-medium">Rp {{ "{:,.0f}".format(a.harga_bottom or 0).replace(",", ".") }}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">Harga Diminta</p>
+                        <p class="font-bold text-blue-600">Rp {{ "{:,.0f}".format(a.harga_diminta).replace(",", ".") }}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">Diminta oleh</p>
+                        <p class="font-medium">{{ a.karyawan_nama }}</p>
+                    </div>
+                </div>
+                {% if a.alasan %}
+                <div class="mt-2 text-sm">
+                    <p class="text-gray-500">Alasan:</p>
+                    <p class="text-gray-700">{{ a.alasan }}</p>
+                </div>
+                {% endif %}
+                {% if a.approver_nama %}
+                <div class="mt-2 text-xs text-gray-400">
+                    {{ 'Disetujui' if a.status == 'approved' else 'Ditolak' }} oleh {{ a.approver_nama }}
+                </div>
+                {% endif %}
+            </div>
+            {% if a.status == 'pending' %}
+            <div class="flex gap-2">
+                <form method="post" action="/approval/approve/{{ a.id }}">
+                    <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
+                        ✅ Setujui
+                    </button>
+                </form>
+                <form method="post" action="/approval/reject/{{ a.id }}">
+                    <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">
+                        ❌ Tolak
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="text-center py-12 text-gray-400">
+        <p class="text-4xl mb-2">📋</p>
+        <p>Belum ada permintaan persetujuan</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

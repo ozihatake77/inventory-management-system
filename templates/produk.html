@@ -26,11 +26,13 @@
         <table class="w-full text-sm">
             <thead class="bg-gray-50 border-b">
                 <tr>
-                    <th class="px-4 py-3 text-left font-medium text-gray-600">Kode</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Nama</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Kategori</th>
+                    {% if user.role in ['bos', 'og'] %}
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Harga Modal</th>
+                    {% endif %}
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Harga Jual</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Harga Bottom</th>
                     <th class="px-4 py-3 text-center font-medium text-gray-600">Stok</th>
                     <th class="px-4 py-3 text-center font-medium text-gray-600">Aksi</th>
                 </tr>
@@ -38,11 +40,13 @@
             <tbody class="divide-y divide-gray-100">
                 {% for p in produk %}
                 <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-3 font-mono text-xs">{{ p.kode }}</td>
                     <td class="px-4 py-3 font-medium">{{ p.nama }}</td>
                     <td class="px-4 py-3 text-gray-500">{{ p.kategori_nama or '-' }}</td>
+                    {% if user.role in ['bos', 'og'] %}
                     <td class="px-4 py-3 text-right">{{ p.harga_modal|rupiah }}</td>
+                    {% endif %}
                     <td class="px-4 py-3 text-right text-green-600 font-medium">{{ p.harga_jual|rupiah }}</td>
+                    <td class="px-4 py-3 text-right text-orange-600 font-medium">{{ p.harga_bottom|rupiah }}</td>
                     <td class="px-4 py-3 text-center">
                         <span class="px-2 py-1 rounded-full text-xs font-medium
                             {% if p.stok == 0 %}bg-red-100 text-red-700
@@ -53,7 +57,7 @@
                     </td>
                     <td class="px-4 py-3 text-center">
                         <div class="flex gap-1 justify-center">
-                            <button onclick="editProduk({{ p.id }}, '{{ p.kode }}', '{{ p.nama }}', {{ p.kategori_id or 0 }}, {{ p.harga_modal }}, {{ p.harga_jual }}, {{ p.stok_minimum }}, '{{ p.satuan }}')"
+                            <button onclick="editProduk({{ p.id }}, '{{ p.nama }}', {{ p.kategori_id or 0 }}, {{ p.harga_modal }}, {{ p.harga_jual }}, {{ p.harga_bottom or 0 }}, {{ p.stok_minimum }}, '{{ p.satuan }}')"
                                     class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs hover:bg-yellow-200">✏️</button>
                             <a href="/produk/hapus/{{ p.id }}" onclick="return confirm('Hapus produk ini?')"
                                class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">🗑️</a>
@@ -80,10 +84,6 @@
             <form method="post" action="/produk/tambah" class="space-y-3">
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Kode Produk</label>
-                        <input name="kode" required placeholder="TV-001" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
                         <select name="kategori_id" class="w-full px-3 py-2 border rounded-lg text-sm">
                             <option value="0">Pilih...</option>
@@ -92,19 +92,25 @@
                             {% endfor %}
                         </select>
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nama Produk</label>
+                        <input name="nama" required placeholder="TV LED 43 inch Samsung" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Nama Produk</label>
-                    <input name="nama" required placeholder="TV LED 43 inch Samsung" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-3 gap-3">
+                    {% if user.role in ['bos', 'og'] %}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Harga Modal</label>
                         <input name="harga_modal" type="number" value="0" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
                     </div>
+                    {% endif %}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Harga Jual</label>
                         <input name="harga_jual" type="number" value="0" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Harga Bottom</label>
+                        <input name="harga_bottom" type="number" value="0" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
                     </div>
                 </div>
                 <div class="grid grid-cols-3 gap-3">
@@ -139,10 +145,6 @@
             <form id="formEdit" method="post" class="space-y-3">
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Kode Produk</label>
-                        <input name="kode" id="edit_kode" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
                         <select name="kategori_id" id="edit_kategori" class="w-full px-3 py-2 border rounded-lg text-sm">
                             <option value="0">Pilih...</option>
@@ -151,19 +153,25 @@
                             {% endfor %}
                         </select>
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nama Produk</label>
+                        <input name="nama" id="edit_nama" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Nama Produk</label>
-                    <input name="nama" id="edit_nama" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-3 gap-3">
+                    {% if user.role in ['bos', 'og'] %}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Harga Modal</label>
                         <input name="harga_modal" id="edit_modal" type="number" class="w-full px-3 py-2 border rounded-lg text-sm">
                     </div>
+                    {% endif %}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Harga Jual</label>
                         <input name="harga_jual" id="edit_jual" type="number" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Harga Bottom</label>
+                        <input name="harga_bottom" id="edit_bottom" type="number" class="w-full px-3 py-2 border rounded-lg text-sm">
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
@@ -187,13 +195,15 @@
 </div>
 
 <script>
-function editProduk(id, kode, nama, kategori, modal, jual, min, satuan) {
+function editProduk(id, nama, kategori, modal, jual, bottom, min, satuan) {
     document.getElementById('formEdit').action = '/produk/edit/' + id;
-    document.getElementById('edit_kode').value = kode;
     document.getElementById('edit_nama').value = nama;
     document.getElementById('edit_kategori').value = kategori;
+    {% if user.role in ['bos', 'og'] %}
     document.getElementById('edit_modal').value = modal;
+    {% endif %}
     document.getElementById('edit_jual').value = jual;
+    document.getElementById('edit_bottom').value = bottom;
     document.getElementById('edit_min').value = min;
     document.getElementById('edit_satuan').value = satuan;
     document.getElementById('modalEdit').classList.remove('hidden');

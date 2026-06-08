@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice #{{ pen.id }} - Toko Elektronik</title>
+    <style>
+        * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+        body { padding: 40px; color: #1f2937; font-size: 14px; line-height: 1.6; }
+        @media print {
+            body { padding: 20px; }
+            .no-print { display: none !important; }
+        }
+        .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #2563eb; }
+        .header h1 { font-size: 24px; font-weight: bold; color: #1e3a8a; margin-bottom: 4px; }
+        .header p { color: #6b7280; font-size: 12px; }
+        .invoice-info { display: flex; justify-content: space-between; margin-bottom: 24px; }
+        .invoice-info div { flex: 1; }
+        .invoice-info .right { text-align: right; }
+        .label { font-size: 11px; color: #6b7280; text-transform: uppercase; margin-bottom: 2px; }
+        .value { font-weight: 600; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+        thead { background: #f3f4f6; }
+        th { padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb; }
+        td { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .total-section { text-align: right; margin-top: 16px; }
+        .total-row { display: flex; justify-content: flex-end; gap: 40px; margin-bottom: 4px; }
+        .total-label { color: #6b7280; }
+        .total-value { font-weight: 600; }
+        .grand-total { font-size: 18px; color: #1e3a8a; border-top: 2px solid #2563eb; padding-top: 8px; margin-top: 8px; }
+        .footer { margin-top: 40px; text-align: center; color: #6b7280; font-size: 12px; border-top: 1px solid #e5e7eb; padding-top: 20px; }
+        .print-btn { position: fixed; bottom: 20px; right: 20px; padding: 12px 24px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .print-btn:hover { background: #1d4ed8; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📦 Toko Elektronik</h1>
+        <p>Jl. Contoh No. 123, Kota, Provinsi | Telp: 0812-xxxx-xxxx</p>
+    </div>
+
+    <div class="invoice-info">
+        <div>
+            <div class="label">Invoice</div>
+            <div class="value">#INV-{{ pen.id }}</div>
+            <div style="margin-top: 8px;">
+                <div class="label">Tanggal</div>
+                <div class="value">{{ pen.created_at|format_date }}</div>
+            </div>
+        </div>
+        <div class="right">
+            <div class="label">Customer</div>
+            <div class="value">{{ pen.nama_customer or '-' }}</div>
+            {% if pen.alamat_customer %}
+            <div style="font-size: 12px; color: #6b7280;">{{ pen.alamat_customer }}</div>
+            {% endif %}
+            {% if pen.hp_customer %}
+            <div style="font-size: 12px; color: #6b7280;">HP: {{ pen.hp_customer }}</div>
+            {% endif %}
+            {% if pen.email_customer %}
+            <div style="font-size: 12px; color: #6b7280;">Email: {{ pen.email_customer }}</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Produk</th>
+                <th class="text-center">Qty</th>
+                <th class="text-right">Harga</th>
+                <th class="text-right">Subtotal</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>{{ pen.produk_nama }}</td>
+                <td class="text-center">{{ pen.jumlah }}</td>
+                <td class="text-right">{{ pen.harga_satuan|rupiah }}</td>
+                <td class="text-right">{{ pen.total|rupiah }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="total-section">
+        <div class="total-row grand-total">
+            <span class="total-label">Total:</span>
+            <span class="total-value">{{ pen.total|rupiah }}</span>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Terima kasih atas pembelian Anda 🙏</p>
+        <p style="margin-top: 4px;">Barang yang sudah dibeli tidak dapat dikembalikan</p>
+    </div>
+
+    <button class="print-btn no-print" onclick="window.print()">🖨️ Cetak Invoice</button>
+
+    {% if auto_print %}
+    <script>
+        window.onload = function() { window.print(); };
+    </script>
+    {% endif %}
+</body>
+</html>
