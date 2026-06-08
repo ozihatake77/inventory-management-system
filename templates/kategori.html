@@ -15,16 +15,16 @@
 
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
     {% for k in kategori %}
-    <div class="bg-white rounded-xl shadow-sm border p-5 flex justify-between items-center">
-        <div>
-            <h4 class="font-semibold text-gray-800">{{ k.nama }}</h4>
-            <p class="text-sm text-gray-500">{{ k.jumlah_produk }} produk</p>
-        </div>
+    <div class="bg-white rounded-xl shadow-sm border p-5 flex justify-between items-center hover:shadow-md hover:border-blue-300 transition group">
+        <a href="/produk?kategori={{ k.id }}" class="flex-1 min-w-0">
+            <h4 class="font-semibold text-gray-800 group-hover:text-blue-600 transition">{{ k.nama }}</h4>
+            <p class="text-sm text-gray-500">{{ k.jumlah_produk }} produk <span class="text-blue-400 group-hover:text-blue-600">→</span></p>
+        </a>
         {% if user.role in ['bos', 'og'] %}
-        <div class="flex gap-1">
-            <button onclick="editKategori({{ k.id }}, '{{ k.nama }}')"
+        <div class="flex gap-1 ml-3 flex-shrink-0">
+            <button onclick="event.stopPropagation(); editKategori({{ k.id }}, '{{ k.nama }}')"
                     class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs hover:bg-yellow-200">✏️</button>
-            <a href="/kategori/hapus/{{ k.id }}" onclick="return confirm('Hapus kategori ini? Produk di kategori ini tidak akan terhapus, tapi kategorinya di-reset.')"
+            <a href="/kategori/hapus/{{ k.id }}" onclick="event.stopPropagation(); return confirm('Hapus kategori ini? Produk di kategori ini tidak akan terhapus, tapi kategorinya di-reset.')"
                class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">🗑️</a>
         </div>
         {% endif %}
