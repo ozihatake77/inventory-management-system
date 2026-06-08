@@ -794,7 +794,7 @@ def notifikasi_baca(request: Request):
 # ═══════════════════════════════════════════════════════════════════════
 @app.get("/produk", response_class=HTMLResponse)
 @require_auth
-def produk_list(request: Request, q: str = "", kategori: int = 0):
+def produk_list(request: Request, q: str = "", kategori: int = 0, sort: str = "az"):
     with get_db() as db:
         query = "SELECT p.*, k.nama as kategori_nama FROM produk p LEFT JOIN kategori k ON p.kategori_id = k.id WHERE 1=1"
         params = []
@@ -804,12 +804,21 @@ def produk_list(request: Request, q: str = "", kategori: int = 0):
         if kategori:
             query += " AND p.kategori_id = ?"
             params.append(kategori)
-        query += " ORDER BY p.nama ASC"
+        sort_map = {
+            "az": "p.nama ASC",
+            "za": "p.nama DESC",
+            "harga_asc": "p.harga_jual ASC",
+            "harga_desc": "p.harga_jual DESC",
+            "stok_asc": "p.stok ASC",
+            "stok_desc": "p.stok DESC",
+        }
+        order = sort_map.get(sort, "p.nama ASC")
+        query += f" ORDER BY {order}"
         produk = db.execute(query, params).fetchall()
         kategori_list = db.execute("SELECT * FROM kategori ORDER BY nama").fetchall()
     return templates.TemplateResponse(request, "produk.html", {
         "request": request, "user": request.state.user, "produk": produk,
-        "kategori_list": kategori_list, "q": q, "kategori": kategori
+        "kategori_list": kategori_list, "q": q, "kategori": kategori, "sort": sort
     })
 
 @app.get("/api/produk/barcode/{barcode}")

@@ -13,6 +13,14 @@
             <option value="{{ k.id }}" {% if kategori == k.id %}selected{% endif %}>{{ k.nama }}</option>
             {% endfor %}
         </select>
+        <select name="sort" class="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+            <option value="az" {% if sort == 'az' %}selected{% endif %}>↕️ A → Z</option>
+            <option value="za" {% if sort == 'za' %}selected{% endif %}>↕️ Z → A</option>
+            <option value="harga_asc" {% if sort == 'harga_asc' %}selected{% endif %}>💰 Harga ↑</option>
+            <option value="harga_desc" {% if sort == 'harga_desc' %}selected{% endif %}>💰 Harga ↓</option>
+            <option value="stok_asc" {% if sort == 'stok_asc' %}selected{% endif %}>📦 Stok ↑</option>
+            <option value="stok_desc" {% if sort == 'stok_desc' %}selected{% endif %}>📦 Stok ↓</option>
+        </select>
         <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">🔍 Filter</button>
     </form>
     {% if has_perm(user, 'hapus_data') %}
