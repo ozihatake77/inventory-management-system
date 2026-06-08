@@ -182,10 +182,15 @@
 
 {% block scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+// Wait for all resources to load, then init chart with retry
+function initChart() {
     var ctx = document.getElementById('salesChart');
-    if (ctx) {
-        new Chart(ctx.getContext('2d'), {
+    if (!ctx || !ctx.getContext) { setTimeout(initChart, 500); return; }
+    // Destroy existing chart if any
+    var existing = Chart.getChart(ctx);
+    if (existing) existing.destroy();
+    
+    new Chart(ctx, {
     type: 'bar',
     data: {
         labels: {{ chart_labels|tojson }},
@@ -204,6 +209,7 @@ document.addEventListener('DOMContentLoaded', function() {
     options: {
         responsive: true,
         maintainAspectRatio: false,
+        animation: { duration: 800 },
         plugins: {
             legend: { position: 'top' },
         },
@@ -211,13 +217,13 @@ document.addEventListener('DOMContentLoaded', function() {
             y: {
                 beginAtZero: true,
                 ticks: {
-                    callback: v => 'Rp ' + v.toLocaleString('id-ID')
+                    callback: function(v) { return 'Rp ' + v.toLocaleString('id-ID'); }
                 }
             }
         }
     }
 });
-    }
-});
+}
+setTimeout(initChart, 1000);
 </script>
 {% endblock %}
