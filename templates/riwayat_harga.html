@@ -6,7 +6,9 @@
 <div class="bg-white rounded-xl shadow-sm border p-5 mb-4">
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div><p class="text-sm text-gray-500">Kode</p><p class="font-medium">{{ produk.kode }}</p></div>
+        {% if has_perm(user, 'lihat_keuntungan') %}
         <div><p class="text-sm text-gray-500">Harga Modal</p><p class="font-medium text-orange-600">{{ produk.harga_modal|rupiah }}</p></div>
+        {% endif %}
         <div><p class="text-sm text-gray-500">Harga Jual</p><p class="font-medium text-green-600">{{ produk.harga_jual|rupiah }}</p></div>
         <div><p class="text-sm text-gray-500">Stok</p><p class="font-medium">{{ produk.stok }} {{ produk.satuan }}</p></div>
     </div>
@@ -18,8 +20,10 @@
             <thead class="bg-gray-50 border-b">
                 <tr>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Tanggal</th>
+                    {% if has_perm(user, 'lihat_keuntungan') %}
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Modal Lama</th>
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Modal Baru</th>
+                    {% endif %}
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Jual Lama</th>
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Jual Baru</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Oleh</th>
@@ -29,8 +33,10 @@
                 {% for r in riwayat %}
                 <tr class="hover:bg-gray-50">
                     <td class="px-4 py-3">{{ r.created_at|format_date }}</td>
+                    {% if has_perm(user, 'lihat_keuntungan') %}
                     <td class="px-4 py-3 text-right">{{ r.harga_modal_lama|rupiah }}</td>
                     <td class="px-4 py-3 text-right font-medium text-orange-600">{{ r.harga_modal_baru|rupiah }}</td>
+                    {% endif %}
                     <td class="px-4 py-3 text-right">{{ r.harga_jual_lama|rupiah }}</td>
                     <td class="px-4 py-3 text-right font-medium text-green-600">{{ r.harga_jual_baru|rupiah }}</td>
                     <td class="px-4 py-3 text-gray-500">{{ r.user_nama or '-' }}</td>

@@ -11,7 +11,9 @@
             <div>
                 <p class="text-sm text-gray-500">Penjualan Hari Ini</p>
                 <p class="text-2xl font-bold text-gray-800">{{ penjualan_hari_ini[0]|rupiah }}</p>
+                {% if has_perm(user, 'lihat_keuntungan') %}
                 <p class="text-xs text-green-600 mt-1">💰 Untung: {{ penjualan_hari_ini[1]|rupiah }}</p>
+                {% endif %}
             </div>
             <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-2xl">💵</div>
         </div>
@@ -23,7 +25,9 @@
             <div>
                 <p class="text-sm text-gray-500">Penjualan Minggu Ini</p>
                 <p class="text-2xl font-bold text-gray-800">{{ penjualan_minggu[0]|rupiah }}</p>
+                {% if has_perm(user, 'lihat_keuntungan') %}
                 <p class="text-xs text-green-600 mt-1">💰 Untung: {{ penjualan_minggu[1]|rupiah }}</p>
+                {% endif %}
             </div>
             <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center text-2xl">📅</div>
         </div>
@@ -155,15 +159,17 @@
 <!-- Monthly Summary -->
 <div class="mt-6 bg-white rounded-xl shadow-sm border p-5">
     <h3 class="font-semibold text-gray-800 mb-4">📊 Ringkasan Bulan Ini</h3>
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-{% if has_perm(user, 'lihat_keuntungan') %}3{% else %}2{% endif %} gap-4">
         <div class="text-center p-4 bg-blue-50 rounded-xl">
             <p class="text-sm text-gray-500">Total Penjualan</p>
             <p class="text-2xl font-bold text-blue-600">{{ penjualan_bulan[0]|rupiah }}</p>
         </div>
+        {% if has_perm(user, 'lihat_keuntungan') %}
         <div class="text-center p-4 bg-green-50 rounded-xl">
             <p class="text-sm text-gray-500">Total Keuntungan</p>
             <p class="text-2xl font-bold text-green-600">{{ penjualan_bulan[1]|rupiah }}</p>
         </div>
+        {% endif %}
         <div class="text-center p-4 bg-purple-50 rounded-xl">
             <p class="text-sm text-gray-500">Jumlah Transaksi</p>
             <p class="text-2xl font-bold text-purple-600">{{ penjualan_bulan[2] }}</p>
@@ -184,12 +190,12 @@ new Chart(ctx, {
             data: {{ chart_sales|tojson }},
             backgroundColor: 'rgba(37, 99, 235, 0.8)',
             borderRadius: 6,
-        }, {
+        }{% if has_perm(user, 'lihat_keuntungan') %}, {
             label: 'Keuntungan',
             data: {{ chart_profit|tojson }},
             backgroundColor: 'rgba(22, 163, 74, 0.8)',
             borderRadius: 6,
-        }]
+        }{% endif %}]
     },
     options: {
         responsive: true,

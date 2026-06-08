@@ -57,15 +57,17 @@
 </div>
 
 <!-- Summary -->
-<div class="grid grid-cols-3 gap-4 mb-6">
+<div class="grid grid-cols-{% if has_perm(user, 'lihat_keuntungan') %}3{% else %}2{% endif %} gap-4 mb-6">
     <div class="bg-white rounded-xl shadow-sm border p-4 text-center">
         <p class="text-sm text-gray-500">Total Penjualan</p>
         <p class="text-xl font-bold text-blue-600">{{ totals[0]|rupiah }}</p>
     </div>
+    {% if has_perm(user, 'lihat_keuntungan') %}
     <div class="bg-white rounded-xl shadow-sm border p-4 text-center">
         <p class="text-sm text-gray-500">Total Keuntungan</p>
         <p class="text-xl font-bold text-green-600">{{ totals[1]|rupiah }}</p>
     </div>
+    {% endif %}
     <div class="bg-white rounded-xl shadow-sm border p-4 text-center">
         <p class="text-sm text-gray-500">Transaksi</p>
         <p class="text-xl font-bold text-purple-600">{{ totals[2] }}</p>
@@ -83,7 +85,7 @@
                     <th class="px-4 py-3 text-center font-medium text-gray-600">Jumlah</th>
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Harga</th>
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Total</th>
-                    {% if user.role in ['bos', 'og'] %}
+                    {% if has_perm(user, 'lihat_keuntungan') %}
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Untung</th>
                     {% endif %}
                     <th class="px-4 py-3 text-center font-medium text-gray-600">Aksi</th>
@@ -98,7 +100,7 @@
                     <td class="px-4 py-3 text-center">{{ p.jumlah }}</td>
                     <td class="px-4 py-3 text-right">{{ p.harga_satuan|rupiah }}</td>
                     <td class="px-4 py-3 text-right font-medium text-blue-600">{{ p.total|rupiah }}</td>
-                    {% if user.role in ['bos', 'og'] %}
+                    {% if has_perm(user, 'lihat_keuntungan') %}
                     <td class="px-4 py-3 text-right font-medium text-green-600">{{ p.keuntungan|rupiah }}</td>
                     {% endif %}
                     <td class="px-4 py-3 text-center">

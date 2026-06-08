@@ -291,7 +291,7 @@ def init_db():
             _role_defaults = {
                 "bos": {"penjualan": True, "hutang": True, "stok_lihat": True, "stok_masuk": True, "stok_keluar": True, "stok_opname": True, "laporan": True, "audit_log": True, "hapus_data": True},
                 "og": {"penjualan": True, "hutang": True, "stok_lihat": True, "stok_masuk": True, "stok_keluar": True, "stok_opname": True, "laporan": True, "audit_log": True, "hapus_data": True},
-                "karyawan": {"penjualan": True, "hutang": True, "stok_lihat": True, "stok_masuk": False, "stok_keluar": False, "stok_opname": False, "laporan": False, "audit_log": False, "hapus_data": False},
+                "karyawan": {"penjualan": True, "hutang": True, "stok_lihat": True, "stok_masuk": False, "stok_keluar": False, "stok_opname": False, "laporan": False, "lihat_keuntungan": False, "audit_log": False, "hapus_data": False},
             }
             existing_users = db.execute("SELECT id, role FROM users").fetchall()
             for u in existing_users:
@@ -533,17 +533,17 @@ def require_bos_or_og(f):
 ALL_FEATURES = [
     "penjualan", "hutang",
     "stok_lihat", "stok_masuk", "stok_keluar", "stok_opname",
-    "laporan", "audit_log", "hapus_data",
+    "laporan", "lihat_keuntungan", "audit_log", "hapus_data",
 ]
 
 ROLE_DEFAULTS = {
     "bos": {f: True for f in ALL_FEATURES},
     "og": {f: True for f in ALL_FEATURES},
     "karyawan": {
-        "penjualan": True, "hutang": True,
-        "stok_lihat": True, "stok_masuk": False, "stok_keluar": False, "stok_opname": False,
-        "laporan": False, "audit_log": False, "hapus_data": False,
-    },
+            "penjualan": True, "hutang": True,
+            "stok_lihat": True, "stok_masuk": False, "stok_keluar": False, "stok_opname": False,
+            "laporan": False, "lihat_keuntungan": False, "audit_log": False, "hapus_data": False,
+        },
 }
 
 def get_user_permissions(db, user_id):
