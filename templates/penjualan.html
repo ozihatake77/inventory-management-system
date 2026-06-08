@@ -85,6 +85,7 @@
                     <th class="px-4 py-3 text-center font-medium text-gray-600">Jumlah</th>
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Harga</th>
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Total</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Bayar</th>
                     {% if has_perm(user, 'lihat_keuntungan') %}
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Untung</th>
                     {% endif %}
@@ -100,6 +101,15 @@
                     <td class="px-4 py-3 text-center">{{ p.jumlah }}</td>
                     <td class="px-4 py-3 text-right">{{ p.harga_satuan|rupiah }}</td>
                     <td class="px-4 py-3 text-right font-medium text-blue-600">{{ p.total|rupiah }}</td>
+                    <td class="px-4 py-3 text-center">
+                        <span class="px-2 py-1 rounded-full text-xs font-medium
+                            {% if p.metode_bayar == 'tunai' %}bg-green-100 text-green-700
+                            {% elif p.metode_bayar == 'transfer' %}bg-blue-100 text-blue-700
+                            {% elif p.metode_bayar == 'hutang' %}bg-orange-100 text-orange-700
+                            {% else %}bg-gray-100 text-gray-700{% endif %}">
+                            {{ p.metode_bayar|capitalize if p.metode_bayar else 'Tunai' }}
+                        </span>
+                    </td>
                     {% if has_perm(user, 'lihat_keuntungan') %}
                     <td class="px-4 py-3 text-right font-medium text-green-600">{{ p.keuntungan|rupiah }}</td>
                     {% endif %}
@@ -131,6 +141,15 @@
     hpCustomer: '',
     emailCustomer: '',
     jumlah: 1,
+    get hargaEfektif() {
+        return this.showDiskon && this.hargaDiskon > 0 ? this.hargaDiskon : this.hargaJual;
+    },
+    get butuhApproval() {
+        return this.showDiskon && this.hargaDiskon > 0 && this.hargaDiskon < this.hargaBottom;
+    },
+    get totalHarga() {
+        return this.hargaEfektif * this.jumlah;
+    },
     async fetchProduk(id) {
         if (!id) { this.selectedProduk = null; return; }
         const resp = await fetch('/api/produk/' + id);
@@ -143,8 +162,8 @@
         this.hargaDiskon = 0;
     },
     async mintaApproval() {
-        if (this.hargaDiskon < this.hargaBottom) {
-            alert('Harga diskon tidak boleh lebih rendah dari harga bottom (' + this.hargaBottom + ')');
+        if (!this.alasanDiskon) {
+            alert('Isi alasan diskon terlebih dahulu!');
             return;
         }
         const form = document.createElement('form');
@@ -199,15 +218,36 @@
 
                 <!-- Diskon Section -->
                 <div x-show="showDiskon" x-cloak class="bg-orange-50 border border-orange-200 rounded-lg p-3 space-y-2">
-                    <label class="block text-sm font-medium text-orange-700 mb-1">Harga Diskon</label>
+                    <div class="flex items-center justify-between">
+                        <label class="block text-sm font-medium text-orange-700">Harga Diskon</label>
+                        <span class="text-xs text-gray-500">Harga Bottom: <span class="font-medium text-blue-600" x-text="'Rp ' + hargaBottom.toLocaleString('id-ID')"></span></span>
+                    </div>
                     <input type="number" x-model="hargaDiskon" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Masukkan harga diskon">
-                    <p x-show="hargaDiskon > 0 && hargaDiskon < hargaBottom" class="text-xs text-red-500">⚠️ Harga diskon di bawah harga bottom!</p>
+                    
+                    <!-- Warning: harga < bottom -->
+                    <div x-show="hargaDiskon > 0 && hargaDiskon < hargaBottom" class="bg-red-50 border border-red-200 rounded-lg p-2">
+                        <p class="text-xs text-red-600 font-medium">⚠️ Harga di bawah harga bottom! Butuh persetujuan Bos/OG</p>
+                    </div>
+                    
+                    <!-- Info: harga >= bottom -->
+                    <div x-show="hargaDiskon > 0 && hargaDiskon >= hargaBottom" class="bg-green-50 border border-green-200 rounded-lg p-2">
+                        <p class="text-xs text-green-600 font-medium">✅ Harga di atas harga bottom, bisa langsung proses</p>
+                    </div>
+
                     <label class="block text-sm font-medium text-orange-700 mb-1">Alasan Diskon</label>
                     <textarea x-model="alasanDiskon" rows="2" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Alasan pemberian diskon..."></textarea>
-                    <div class="flex gap-2">
+                    
+                    <!-- Approval button (only when harga < bottom) -->
+                    <div x-show="butuhApproval" class="flex gap-2">
                         <button type="button" @click="mintaApproval()" x-show="!approvalSent" class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">📤 Minta Persetujuan</button>
                         <span x-show="approvalSent" class="px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg text-sm font-medium">⏳ Menunggu persetujuan Bos/OG</span>
                     </div>
+                    
+                    <!-- Total preview -->
+                    <div class="bg-white rounded-lg p-2 border">
+                        <p class="text-xs text-gray-500">Total: <span class="font-bold text-green-600" x-text="'Rp ' + totalHarga.toLocaleString('id-ID')"></span></p>
+                    </div>
+
                     <input type="hidden" name="harga_diskon" :value="hargaDiskon">
                     <input type="hidden" name="alasan_diskon" :value="alasanDiskon">
                 </div>
@@ -241,8 +281,9 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Metode Bayar</label>
                     <select name="metode_bayar" x-model="metodeBayar" class="w-full px-3 py-2 border rounded-lg text-sm">
-                        <option value="tunai">Tunai</option>
-                        <option value="hutang">Hutang</option>
+                        <option value="tunai">💵 Tunai</option>
+                        <option value="transfer">🏦 Transfer</option>
+                        <option value="hutang">💳 Hutang</option>
                     </select>
                 </div>
 

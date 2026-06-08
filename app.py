@@ -284,6 +284,8 @@ def init_db():
             except: pass
         try: db.execute("ALTER TABLE penjualan ADD COLUMN approval_id INTEGER")
         except: pass
+        try: db.execute("ALTER TABLE penjualan ADD COLUMN metode_bayar TEXT DEFAULT 'tunai'")
+        except: pass
         try: db.execute("ALTER TABLE stok_opname ADD COLUMN session_id INTEGER")
         except: pass
         # Init permissions for existing users who don't have any
@@ -1225,11 +1227,11 @@ def penjualan_tambah(request: Request, produk_id: int = Form(...), jumlah: int =
 
         db.execute("""
             INSERT INTO penjualan (user_id, produk_id, jumlah, harga_satuan, harga_modal, total, keuntungan,
-                                   keterangan, nama_customer, alamat_customer, hp_customer, email_customer, approval_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   keterangan, nama_customer, alamat_customer, hp_customer, email_customer, approval_id, metode_bayar)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (request.state.user["id"], produk_id, jumlah, harga, produk["harga_modal"], total, keuntungan,
               keterangan, nama_customer, alamat_customer, hp_customer, email_customer,
-              approval_id if approval_id else None))
+              approval_id if approval_id else None, metode_bayar))
 
         db.execute("UPDATE produk SET stok = stok - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (jumlah, produk_id))
 
