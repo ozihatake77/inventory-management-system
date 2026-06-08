@@ -1686,7 +1686,7 @@ def kategori_page(request: Request):
     })
 
 @app.post("/kategori/tambah")
-@require_auth
+@require_bos_or_og
 def kategori_tambah(request: Request, nama: str = Form(...)):
     with get_db() as db:
         db.execute("INSERT OR IGNORE INTO kategori (nama) VALUES (?)", (nama,))
