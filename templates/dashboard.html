@@ -65,7 +65,7 @@
     <!-- Sales Chart -->
     <div class="bg-white rounded-xl shadow-sm border p-5">
         <h3 class="font-semibold text-gray-800 mb-4">📈 Penjualan 7 Hari Terakhir</h3>
-        <canvas id="salesChart" height="200"></canvas>
+        <canvas id="salesChart" style="min-height: 250px;"></canvas>
     </div>
 
     <!-- Top Products -->
@@ -180,10 +180,10 @@
 
 {% block scripts %}
 <script>
-window.addEventListener('load', function() {
-    setTimeout(function() {
-        const ctx = document.getElementById('salesChart').getContext('2d');
-        new Chart(ctx, {
+document.addEventListener('DOMContentLoaded', function() {
+    var ctx = document.getElementById('salesChart');
+    if (ctx) {
+        new Chart(ctx.getContext('2d'), {
     type: 'bar',
     data: {
         labels: {{ chart_labels|tojson }},
@@ -201,6 +201,7 @@ window.addEventListener('load', function() {
     },
     options: {
         responsive: true,
+        maintainAspectRatio: false,
         plugins: {
             legend: { position: 'top' },
         },
@@ -214,7 +215,7 @@ window.addEventListener('load', function() {
         }
     }
 });
-    }, 300);
+    }
 });
 </script>
 {% endblock %}
