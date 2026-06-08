@@ -430,11 +430,11 @@ def init_db():
                 ("Dewi Lestari", "Jl. Diponegoro No. 8, Semarang", "089012345678", "dewi@email.com"),
                 ("Rudi Hermawan", "Jl. Ahmad Yani No. 33, Yogyakarta", "081123456789", "rudi@email.com"),
             ]
-            for nama, alamat, hp, email in sample_pelanggan:
-                db.execute("INSERT INTO pelanggan (nama, alamat, hp, email) VALUES (?, ?, ?, ?)",
-                           (nama, alamat, hp, email))
+            for nama, alamat, telp, email in sample_pelanggan:
+                db.execute("INSERT INTO pelanggan (nama, alamat, telepon, email) VALUES (?, ?, ?, ?)",
+                           (nama, alamat, telp, email))
 
-            # Sample stok masuk
+            # Sample stok masuk (using stok_mutasi with tipe='masuk')
             sample_masuk = [
                 (1, 10, "Restock awal", 2), (2, 5, "Restock awal", 2), (3, 8, "Restock awal", 2),
                 (4, 6, "Restock awal", 2), (5, 15, "Restock awal", 2), (6, 20, "Restock awal", 2),
@@ -444,10 +444,10 @@ def init_db():
             for prod_id, qty, ket, user_id in sample_masuk:
                 days_ago = random.randint(1, 5)
                 date = (today - timedelta(days=days_ago)).strftime("%Y-%m-%d %H:%M:%S")
-                db.execute("INSERT INTO stok_masuk (produk_id, jumlah, keterangan, user_id, created_at) VALUES (?, ?, ?, ?, ?)",
+                db.execute("INSERT INTO stok_mutasi (produk_id, tipe, jumlah, keterangan, user_id, created_at) VALUES (?, 'masuk', ?, ?, ?, ?)",
                            (prod_id, qty, ket, user_id, date))
 
-            # Sample stok keluar
+            # Sample stok keluar (using stok_mutasi with tipe='keluar')
             sample_keluar = [
                 (1, 2, "Rusak/retur", 2), (6, 3, "Kadaluarsa sample", 2),
                 (10, 4, "Contoh display", 2),
@@ -455,7 +455,7 @@ def init_db():
             for prod_id, qty, ket, user_id in sample_keluar:
                 days_ago = random.randint(1, 3)
                 date = (today - timedelta(days=days_ago)).strftime("%Y-%m-%d %H:%M:%S")
-                db.execute("INSERT INTO stok_keluar (produk_id, jumlah, keterangan, user_id, created_at) VALUES (?, ?, ?, ?, ?)",
+                db.execute("INSERT INTO stok_mutasi (produk_id, tipe, jumlah, keterangan, user_id, created_at) VALUES (?, 'keluar', ?, ?, ?, ?)",
                            (prod_id, qty, ket, user_id, date))
 
 init_db()
