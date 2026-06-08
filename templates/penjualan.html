@@ -31,33 +31,29 @@
 </div>
 {% endif %}
 
+<!-- Filter & Actions -->
 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-    <div class="flex flex-wrap items-center gap-2">
-        <a href="/penjualan?periode=hari" class="px-3 py-1.5 rounded-lg text-sm {% if periode == 'hari' %}bg-blue-600 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">Hari Ini</a>
-        <a href="/penjualan?periode=minggu" class="px-3 py-1.5 rounded-lg text-sm {% if periode == 'minggu' %}bg-blue-600 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">Minggu Ini</a>
-        <a href="/penjualan?periode=bulan" class="px-3 py-1.5 rounded-lg text-sm {% if periode == 'bulan' %}bg-blue-600 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">Bulan Ini</a>
-        <a href="/penjualan?periode=all" class="px-3 py-1.5 rounded-lg text-sm {% if periode == 'all' %}bg-blue-600 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">Semua</a>
-        <span class="text-gray-400">|</span>
-        <form method="get" action="/penjualan" class="flex items-center gap-2">
+    <div class="flex gap-2 flex-wrap items-center">
+        <a href="/penjualan?periode=hari" class="px-3 py-1.5 rounded-lg text-xs font-medium {% if periode == 'hari' %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">Hari Ini</a>
+        <a href="/penjualan?periode=minggu" class="px-3 py-1.5 rounded-lg text-xs font-medium {% if periode == 'minggu' %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">Minggu Ini</a>
+        <a href="/penjualan?periode=bulan" class="px-3 py-1.5 rounded-lg text-xs font-medium {% if periode == 'bulan' %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">Bulan Ini</a>
+        <a href="/penjualan?periode=all" class="px-3 py-1.5 rounded-lg text-xs font-medium {% if periode == 'all' %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">Semua</a>
+        <span class="text-gray-300">|</span>
+        <form method="get" class="flex gap-2 items-center">
             <input type="hidden" name="periode" value="custom">
-            <label class="text-sm text-gray-600">📅 Dari:</label>
-            <input type="date" name="tgl_dari" value="{{ tgl_dari }}"
-                   class="px-2 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-            <label class="text-sm text-gray-600">Sampai:</label>
-            <input type="date" name="tgl_sampai" value="{{ tgl_sampai }}"
-                   class="px-2 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-            <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Filter</button>
-            <a href="/penjualan" class="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200 border">Reset</a>
+            <label class="text-xs text-gray-500">📅 Dari:</label>
+            <input type="date" name="tgl_dari" value="{{ tgl_dari }}" class="px-2 py-1 border rounded text-xs">
+            <label class="text-xs text-gray-500">Sampai:</label>
+            <input type="date" name="tgl_sampai" value="{{ tgl_sampai }}" class="px-2 py-1 border rounded text-xs">
+            <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700">Filter</button>
+            <a href="/penjualan" class="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs hover:bg-gray-200">Reset</a>
         </form>
     </div>
-    <button onclick="document.getElementById('modalJual').classList.remove('hidden')"
-            class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
-        💰 Catat Penjualan
-    </button>
+    <button onclick="openCartModal()" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 font-medium">🛒 Penjualan Baru</button>
 </div>
 
-<!-- Summary -->
-<div class="grid grid-cols-{% if has_perm(user, 'lihat_keuntungan') %}3{% else %}2{% endif %} gap-4 mb-6">
+<!-- Summary Cards -->
+<div class="grid grid-cols-1 sm:grid-cols-{% if has_perm(user, 'lihat_keuntungan') %}3{% else %}2{% endif %} gap-4 mb-6">
     <div class="bg-white rounded-xl shadow-sm border p-4 text-center">
         <p class="text-sm text-gray-500">Total Penjualan</p>
         <p class="text-xl font-bold text-blue-600">{{ totals[0]|rupiah }}</p>
@@ -74,6 +70,7 @@
     </div>
 </div>
 
+<!-- Sales Table -->
 <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
     <div class="overflow-x-auto">
         <table class="w-full text-sm">
@@ -137,216 +134,116 @@
     {% endif %}
 </div>
 
-<!-- Modal Jual -->
-<div id="modalJual" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" x-data="{
-    produkId: '',
-    selectedProduk: null,
-    hargaJual: 0,
-    hargaBottom: 0,
-    showDiskon: false,
-    hargaDiskon: 0,
-    alasanDiskon: '',
-    approvalSent: false,
-    metodeBayar: 'tunai',
-    namaCustomer: '-',
-    alamatCustomer: '',
-    hpCustomer: '',
-    emailCustomer: '',
-    jumlah: 1,
-    get hargaEfektif() {
-        return this.showDiskon && this.hargaDiskon > 0 ? this.hargaDiskon : this.hargaJual;
-    },
-    get butuhApproval() {
-        return this.showDiskon && this.hargaDiskon > 0 && this.hargaDiskon < this.hargaBottom;
-    },
-    get totalHarga() {
-        return this.hargaEfektif * this.jumlah;
-    },
-    async fetchProduk(id) {
-        this.produkId = id;
-        if (!id) { this.selectedProduk = null; return; }
-        const resp = await fetch('/api/produk/' + id);
-        const data = await resp.json();
-        this.selectedProduk = data;
-        this.hargaJual = data.harga_jual;
-        this.hargaBottom = data.harga_bottom || 0;
-        this.showDiskon = false;
-        this.approvalSent = false;
-        this.hargaDiskon = 0;
-    },
-    async mintaApproval() {
-        if (!this.alasanDiskon) {
-            alert('Isi alasan diskon terlebih dahulu!');
-            return;
-        }
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '/approval/request';
-        const fields = {
-            'produk_id': this.produkId,
-            'harga_diminta': this.hargaDiskon,
-            'alasan': this.alasanDiskon
-        };
-        for (const [key, val] of Object.entries(fields)) {
-            const input = document.createElement('input');
-            input.type = 'hidden'; input.name = key; input.value = val;
-            form.appendChild(input);
-        }
-        document.body.appendChild(form);
-        form.submit();
-    }
-}">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div class="p-6">
-            <h3 class="text-lg font-bold mb-4">💰 Catat Penjualan</h3>
-            <form method="post" action="/penjualan/tambah" class="space-y-3">
-                <!-- Barcode Search -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">🔍 Scan Barcode</label>
-                    <div class="flex gap-2">
-                        <input type="text" id="barcodeInput" placeholder="Scan atau ketik barcode..."
-                               class="flex-1 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                               @keydown.enter.prevent="
-                                   if($event.target.value) {
-                                       fetch('/api/produk/barcode/' + $event.target.value)
-                                           .then(r => r.json())
-                                           .then(data => {
-                                               if(data.found) {
-                                                   produkId = String(data.id);
-                                                   fetchProduk(String(data.id));
-                                               } else {
-                                                   alert('Barcode tidak ditemukan!');
-                                               }
-                                           });
-                                   }
-                               ">
-                        <button type="button" onclick="document.getElementById('barcodeInput').focus()"
-                                class="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm hover:bg-blue-200">📷</button>
+<!-- Cart Modal (Multi-Item) -->
+<div id="modalCart" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="p-6" x-data="cartApp()">
+            <h3 class="text-lg font-bold mb-4">🛒 Penjualan Baru</h3>
+            
+            <!-- Add Product Section -->
+            <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                <div class="grid grid-cols-12 gap-2 items-end">
+                    <div class="col-span-5">
+                        <label class="block text-xs text-gray-500 mb-1">🔍 Barcode</label>
+                        <input type="text" x-model="barcodeInput" placeholder="Scan barcode..."
+                               class="w-full px-3 py-2 border rounded-lg text-sm"
+                               @keydown.enter.prevent="scanBarcode()">
+                    </div>
+                    <div class="col-span-4">
+                        <label class="block text-xs text-gray-500 mb-1">Produk</label>
+                        <select x-model="selectedProdukId" @change="selectProduk($event.target.value)" class="w-full px-3 py-2 border rounded-lg text-sm">
+                            <option value="">Pilih produk...</option>
+                            {% for p in produk %}{% if p.stok > 0 %}
+                            <option value="{{ p.id }}">{{ p.nama }} (stok: {{ p.stok }})</option>
+                            {% endif %}{% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-xs text-gray-500 mb-1">Jumlah</label>
+                        <input type="number" x-model="inputJumlah" min="1" value="1" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div class="col-span-1">
+                        <button @click="addToCart()" class="w-full px-3 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">➕</button>
                     </div>
                 </div>
-
-                <!-- Product Selection -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Atau Pilih Produk</label>
-                    <select name="produk_id" required class="w-full px-3 py-2 border rounded-lg text-sm"
-                            x-model="produkId" @change="fetchProduk($event.target.value)">
-                        <option value="">Pilih produk...</option>
-                        {% for p in produk %}{% if p.stok > 0 %}
-                        <option value="{{ p.id }}">{{ p.nama }} (stok: {{ p.stok }})</option>
-                        {% endif %}{% endfor %}
-                    </select>
+                <!-- Product Info -->
+                <div x-show="selectedProduk" class="mt-2 text-xs text-gray-500">
+                    <span>Harga: <span class="font-medium text-green-600" x-text="'Rp ' + (selectedProduk?.harga_jual || 0).toLocaleString('id-ID')"></span></span>
+                    <span class="ml-3">Bottom: <span class="font-medium text-blue-600" x-text="'Rp ' + (selectedProduk?.harga_bottom || 0).toLocaleString('id-ID')"></span></span>
+                    <span class="ml-3">Stok: <span class="font-medium" x-text="selectedProduk?.stok || 0"></span></span>
                 </div>
+            </div>
 
-                <!-- Jumlah -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Jumlah</label>
-                    <input name="jumlah" type="number" min="1" x-model="jumlah" required class="w-full px-3 py-2 border rounded-lg text-sm">
-                </div>
-
-                <!-- Harga Jual (read-only) -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Harga Jual</label>
-                    <div class="flex items-center gap-2">
-                        <input type="text" :value="hargaJual" readonly class="flex-1 px-3 py-2 border rounded-lg text-sm bg-gray-50 font-medium text-green-600">
-                        <button type="button" @click="showDiskon = !showDiskon" class="px-3 py-2 bg-orange-100 text-orange-700 rounded-lg text-sm hover:bg-orange-200">💰 Diskon</button>
-                    </div>
-                    <input type="hidden" name="harga_jual_used" :value="showDiskon && hargaDiskon > 0 ? hargaDiskon : hargaJual">
-                    <input type="hidden" name="approval_id" value="0">
-                </div>
-
-                <!-- Diskon Section -->
-                <div x-show="showDiskon" x-cloak class="bg-orange-50 border border-orange-200 rounded-lg p-3 space-y-2">
-                    <div class="flex items-center justify-between">
-                        <label class="block text-sm font-medium text-orange-700">Harga Diskon</label>
-                        <span class="text-xs text-gray-500">Harga Bottom: <span class="font-medium text-blue-600" x-text="'Rp ' + hargaBottom.toLocaleString('id-ID')"></span></span>
-                    </div>
-                    <input type="number" x-model="hargaDiskon" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Masukkan harga diskon">
-                    
-                    <!-- Warning: harga < bottom -->
-                    <div x-show="hargaDiskon > 0 && hargaDiskon < hargaBottom" class="bg-red-50 border border-red-200 rounded-lg p-2">
-                        <p class="text-xs text-red-600 font-medium">⚠️ Harga di bawah harga bottom! Butuh persetujuan Bos/OG</p>
-                    </div>
-                    
-                    <!-- Info: harga >= bottom -->
-                    <div x-show="hargaDiskon > 0 && hargaDiskon >= hargaBottom" class="bg-green-50 border border-green-200 rounded-lg p-2">
-                        <p class="text-xs text-green-600 font-medium">✅ Harga di atas harga bottom, bisa langsung proses</p>
-                    </div>
-
-                    <label class="block text-sm font-medium text-orange-700 mb-1">Alasan Diskon</label>
-                    <textarea x-model="alasanDiskon" rows="2" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Alasan pemberian diskon..."></textarea>
-                    
-                    <!-- Approval button (only when harga < bottom) -->
-                    <div x-show="butuhApproval" class="flex gap-2">
-                        <button type="button" @click="mintaApproval()" x-show="!approvalSent" class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">📤 Minta Persetujuan</button>
-                        <span x-show="approvalSent" class="px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg text-sm font-medium">⏳ Menunggu persetujuan Bos/OG</span>
-                    </div>
-                    
-                    <!-- Total preview -->
-                    <div class="bg-white rounded-lg p-2 border">
-                        <p class="text-xs text-gray-500">Total: <span class="font-bold text-green-600" x-text="'Rp ' + totalHarga.toLocaleString('id-ID')"></span></p>
-                    </div>
-
-                    <input type="hidden" name="harga_diskon" :value="hargaDiskon">
-                    <input type="hidden" name="alasan_diskon" :value="alasanDiskon">
-                </div>
-
-                <!-- Customer Info -->
-                <div class="border-t pt-3">
-                    <p class="text-sm font-medium text-gray-700 mb-2">👤 Info Customer</p>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">Nama <span class="text-red-500">*</span></label>
-                            <input name="nama_customer" x-model="namaCustomer" required class="w-full px-3 py-2 border rounded-lg text-sm">
+            <!-- Cart Items -->
+            <div x-show="cart.length > 0" class="mb-4">
+                <h4 class="text-sm font-semibold text-gray-700 mb-2">🛒 Keranjang (<span x-text="cart.length"></span> item)</h4>
+                <div class="space-y-2 max-h-48 overflow-y-auto">
+                    <template x-for="(item, index) in cart" :key="index">
+                        <div class="flex items-center justify-between bg-white border rounded-lg p-3">
+                            <div class="flex-1">
+                                <p class="text-sm font-medium" x-text="item.nama"></p>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <input type="number" :value="item.jumlah" min="1" :max="item.stok"
+                                           @change="updateQty(index, $event.target.value)"
+                                           class="w-16 px-2 py-1 border rounded text-xs text-center">
+                                    <span class="text-xs text-gray-500">x <span x-text="'Rp ' + item.harga.toLocaleString('id-ID')"></span></span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-bold text-blue-600" x-text="'Rp ' + (item.harga * item.jumlah).toLocaleString('id-ID')"></span>
+                                <button @click="removeFromCart(index)" class="px-2 py-1 bg-red-100 text-red-600 rounded text-xs hover:bg-red-200">🗑️</button>
+                            </div>
                         </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">No HP</label>
-                            <input name="hp_customer" x-model="hpCustomer" class="w-full px-3 py-2 border rounded-lg text-sm">
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3 mt-2">
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">Alamat</label>
-                            <input name="alamat_customer" x-model="alamatCustomer" class="w-full px-3 py-2 border rounded-lg text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">Email</label>
-                            <input name="email_customer" x-model="emailCustomer" class="w-full px-3 py-2 border rounded-lg text-sm">
-                        </div>
-                    </div>
+                    </template>
                 </div>
+            </div>
 
-                <!-- Metode Bayar -->
+            <div x-show="cart.length === 0" class="text-center py-6 text-gray-400 mb-4">
+                <p class="text-2xl mb-1">🛒</p>
+                <p class="text-sm">Keranjang kosong. Pilih produk di atas.</p>
+            </div>
+
+            <!-- Customer Info -->
+            <div class="border-t pt-3 mb-3">
+                <p class="text-sm font-medium text-gray-700 mb-2">👤 Info Customer</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <input x-model="namaCustomer" placeholder="Nama *" class="px-3 py-2 border rounded-lg text-sm">
+                    <input x-model="hpCustomer" placeholder="No HP" class="px-3 py-2 border rounded-lg text-sm">
+                </div>
+            </div>
+
+            <!-- Payment Method -->
+            <div class="grid grid-cols-2 gap-3 mb-3">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Metode Bayar</label>
-                    <select name="metode_bayar" x-model="metodeBayar" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    <label class="block text-xs text-gray-500 mb-1">Metode Bayar</label>
+                    <select x-model="metodeBayar" class="w-full px-3 py-2 border rounded-lg text-sm">
                         <option value="tunai">💵 Tunai</option>
                         <option value="transfer">🏦 Transfer</option>
                         <option value="hutang">💳 Hutang</option>
                     </select>
                 </div>
-
-                <!-- Tempo Hutang (only visible when hutang selected) -->
-                <div x-show="metodeBayar === 'hutang'" x-cloak>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Jatuh Tempo</label>
-                    <select name="tempo_hari" class="w-full px-3 py-2 border rounded-lg text-sm">
-                        <option value="7">7 Hari</option>
-                        <option value="14">14 Hari</option>
-                        <option value="30" selected>30 Hari (1 Bulan)</option>
-                    </select>
-                </div>
-
-                <!-- Keterangan -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Keterangan</label>
-                    <input name="keterangan" placeholder="Catatan tambahan..." class="w-full px-3 py-2 border rounded-lg text-sm">
+                    <label class="block text-xs text-gray-500 mb-1">Keterangan</label>
+                    <input x-model="keterangan" placeholder="Catatan..." class="w-full px-3 py-2 border rounded-lg text-sm">
                 </div>
+            </div>
 
-                <div class="flex gap-2 pt-2">
-                    <button type="submit" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">💰 Simpan & Cetak Nota</button>
-                    <button type="button" onclick="document.getElementById('modalJual').classList.add('hidden')"
-                            class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">Batal</button>
+            <!-- Total & Checkout -->
+            <div class="bg-blue-50 rounded-lg p-4 mb-4">
+                <div class="flex justify-between items-center">
+                    <span class="text-sm font-medium text-gray-700">Total (<span x-text="cart.length"></span> item)</span>
+                    <span class="text-xl font-bold text-blue-600" x-text="'Rp ' + cartTotal.toLocaleString('id-ID')"></span>
                 </div>
-            </form>
+            </div>
+
+            <div class="flex gap-2">
+                <button @click="checkout()" :disabled="cart.length === 0 || loading"
+                        class="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span x-show="!loading">💰 Checkout & Cetak Nota</span>
+                    <span x-show="loading">⏳ Memproses...</span>
+                </button>
+                <button @click="closeCartModal()" class="px-4 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">Batal</button>
+            </div>
         </div>
     </div>
 </div>
@@ -376,13 +273,159 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
+function openCartModal() {
+    document.getElementById('modalCart').classList.remove('hidden');
+}
+function closeCartModal() {
+    document.getElementById('modalCart').classList.add('hidden');
+}
 function voidPenjualan(id, nama) {
     document.getElementById('formVoid').action = '/penjualan/void/' + id;
     document.getElementById('voidProdukNama').textContent = nama;
     document.getElementById('voidAlasan').value = '';
     document.getElementById('modalVoid').classList.remove('hidden');
+}
+
+function cartApp() {
+    return {
+        cart: [],
+        selectedProdukId: '',
+        selectedProduk: null,
+        inputJumlah: 1,
+        barcodeInput: '',
+        namaCustomer: '-',
+        hpCustomer: '',
+        metodeBayar: 'tunai',
+        keterangan: '',
+        loading: false,
+        
+        get cartTotal() {
+            return this.cart.reduce((sum, item) => sum + (item.harga * item.jumlah), 0);
+        },
+        
+        async scanBarcode() {
+            if (!this.barcodeInput) return;
+            try {
+                const resp = await fetch('/api/produk/barcode/' + this.barcodeInput);
+                const data = await resp.json();
+                if (data.found) {
+                    this.selectedProdukId = String(data.id);
+                    this.selectedProduk = data;
+                    this.barcodeInput = '';
+                } else {
+                    alert('Barcode tidak ditemukan!');
+                }
+            } catch(e) {
+                alert('Error scanning barcode');
+            }
+        },
+        
+        async selectProduk(id) {
+            if (!id) { this.selectedProduk = null; return; }
+            try {
+                const resp = await fetch('/api/produk/' + id);
+                this.selectedProduk = await resp.json();
+            } catch(e) {
+                console.error(e);
+            }
+        },
+        
+        addToCart() {
+            if (!this.selectedProdukId || !this.selectedProduk) {
+                alert('Pilih produk terlebih dahulu!');
+                return;
+            }
+            const jumlah = parseInt(this.inputJumlah) || 1;
+            if (jumlah > this.selectedProduk.stok) {
+                alert('Jumlah melebihi stok! Stok tersisa: ' + this.selectedProduk.stok);
+                return;
+            }
+            
+            // Check if already in cart
+            const existing = this.cart.findIndex(i => i.produkId == this.selectedProdukId);
+            if (existing >= 0) {
+                const newQty = this.cart[existing].jumlah + jumlah;
+                if (newQty > this.selectedProduk.stok) {
+                    alert('Total jumlah melebihi stok! Stok tersisa: ' + this.selectedProduk.stok);
+                    return;
+                }
+                this.cart[existing].jumlah = newQty;
+            } else {
+                this.cart.push({
+                    produkId: parseInt(this.selectedProdukId),
+                    nama: this.selectedProduk.nama,
+                    harga: this.selectedProduk.harga_jual,
+                    hargaModal: this.selectedProduk.harga_modal,
+                    jumlah: jumlah,
+                    stok: this.selectedProduk.stok
+                });
+            }
+            
+            // Reset
+            this.selectedProdukId = '';
+            this.selectedProduk = null;
+            this.inputJumlah = 1;
+        },
+        
+        updateQty(index, val) {
+            const qty = parseInt(val) || 1;
+            if (qty > this.cart[index].stok) {
+                alert('Jumlah melebihi stok!');
+                this.cart[index].jumlah = this.cart[index].stok;
+                return;
+            }
+            this.cart[index].jumlah = qty;
+        },
+        
+        removeFromCart(index) {
+            this.cart.splice(index, 1);
+        },
+        
+        async checkout() {
+            if (this.cart.length === 0) {
+                alert('Keranjang kosong!');
+                return;
+            }
+            if (!this.namaCustomer || this.namaCustomer === '') {
+                this.namaCustomer = '-';
+            }
+            
+            this.loading = true;
+            try {
+                const resp = await fetch('/penjualan/checkout', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        items: this.cart.map(i => ({
+                            produk_id: i.produkId,
+                            jumlah: i.jumlah,
+                            harga: i.harga
+                        })),
+                        metode_bayar: this.metodeBayar,
+                        nama_customer: this.namaCustomer,
+                        hp_customer: this.hpCustomer,
+                        keterangan: this.keterangan,
+                        tempo_hari: 30
+                    })
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    window.open('/penjualan/nota/' + result.nota_id + '?print=1', '_blank');
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + (result.error || 'Gagal memproses'));
+                }
+            } catch(e) {
+                alert('Error: ' + e.message);
+            } finally {
+                this.loading = false;
+            }
+        }
+    };
 }
 </script>
 {% endblock %}

@@ -294,6 +294,8 @@ def init_db():
         except: pass
         try: db.execute("ALTER TABLE penjualan ADD COLUMN void_at TIMESTAMP")
         except: pass
+        try: db.execute("ALTER TABLE penjualan ADD COLUMN batch_id TEXT DEFAULT ''")
+        except: pass
         try: db.execute("ALTER TABLE stok_opname ADD COLUMN session_id INTEGER")
         except: pass
         # Init permissions for existing users who don't have any
@@ -1288,6 +1290,97 @@ def penjualan_tambah(request: Request, produk_id: int = Form(...), jumlah: int =
 
     check_low_stock()
     return RedirectResponse(f"/penjualan/nota/{penjualan_id}?print=1", status_code=303)
+
+@app.post("/penjualan/batch")
+@require_auth
+def penjualan_batch(request: Request):
+    """Process multi-item cart checkout"""
+    import json, uuid
+    user = request.state.user
+    # Parse JSON body
+    body = request._body if hasattr(request, '_body') else b''
+    
+    # This route is called from form with hidden fields
+    # We'll handle it via form data instead
+    return RedirectResponse("/penjualan", status_code=303)
+
+@app.post("/penjualan/checkout")
+@require_auth
+async def penjualan_checkout(request: Request):
+    """Process multi-item cart checkout via JSON"""
+    import json, uuid
+    user = request.state.user
+    data = await request.json()
+    
+    items = data.get('items', [])
+    metode_bayar = data.get('metode_bayar', 'tunai')
+    nama_customer = data.get('nama_customer', '-')
+    alamat_customer = data.get('alamat_customer', '')
+    hp_customer = data.get('hp_customer', '')
+    email_customer = data.get('email_customer', '')
+    keterangan = data.get('keterangan', '')
+    tempo_hari = data.get('tempo_hari', 30)
+    
+    if not items:
+        return {"success": False, "error": "Keranjang kosong"}
+    
+    batch_id = str(uuid.uuid4())[:8]
+    nota_ids = []
+    
+    with get_db() as db:
+        for item in items:
+            produk_id = item['produk_id']
+            jumlah = item['jumlah']
+            harga = item['harga']
+            
+            produk = db.execute("SELECT * FROM produk WHERE id = ?", (produk_id,)).fetchone()
+            if not produk:
+                continue
+            if produk['stok'] < jumlah:
+                return {"success": False, "error": f"Stok {produk['nama']} tidak cukup ({produk['stok']} tersisa)"}
+            
+            total = harga * jumlah
+            keuntungan = (harga - produk['harga_modal']) * jumlah
+            
+            db.execute("""
+                INSERT INTO penjualan (user_id, produk_id, jumlah, harga_satuan, harga_modal, total, keuntungan,
+                                       keterangan, nama_customer, alamat_customer, hp_customer, email_customer,
+                                       metode_bayar, batch_id, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
+            """, (user['id'], produk_id, jumlah, harga, produk['harga_modal'], total, keuntungan,
+                  keterangan, nama_customer, alamat_customer, hp_customer, email_customer,
+                  metode_bayar, batch_id))
+            
+            pen_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+            nota_ids.append(pen_id)
+            
+            # Update stock
+            db.execute("UPDATE produk SET stok = stok - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                       (jumlah, produk_id))
+            
+            # Log stock mutation
+            db.execute("""INSERT INTO stok_mutasi (produk_id, tipe, jumlah, harga_satuan, user_id, keterangan)
+                          VALUES (?, 'keluar', ?, ?, ?, ?)""",
+                       (produk_id, jumlah, harga, user['id'], f"Penjualan batch {batch_id}"))
+            
+            # Create hutang if needed
+            if metode_bayar == 'hutang':
+                jatuh_tempo = (datetime.now() + timedelta(days=tempo_hari)).strftime("%Y-%m-%d")
+                db.execute("""INSERT INTO hutang (pelanggan_id, penjualan_id, jumlah, sudah_bayar, sisa, status, jatuh_tempo, keterangan)
+                              VALUES (NULL, ?, ?, 0, ?, 'belum_lunas', ?, ?)""",
+                           (pen_id, total, total, jatuh_tempo, f"Batch {batch_id}"))
+        
+        # Log audit
+        total_all = sum(item['harga'] * item['jumlah'] for item in items)
+        log_audit(db, user, "Penjualan Batch", "penjualan",
+                  f"Batch {batch_id}: {len(items)} item = Rp {total_all:,.0f} ({metode_bayar})",
+                  request.client.host)
+    
+    check_low_stock()
+    # Return the first nota ID for redirect
+    if nota_ids:
+        return {"success": True, "nota_id": nota_ids[0], "batch_id": batch_id, "count": len(nota_ids)}
+    return {"success": False, "error": "Gagal memproses"}
 
 @app.get("/penjualan/nota/{id}", response_class=HTMLResponse)
 @require_auth
