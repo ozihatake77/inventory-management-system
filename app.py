@@ -780,7 +780,8 @@ def stok_page(request: Request, q: str = "", filter_kategori: str = "", filter_k
             SELECT p.id, p.kode, k.nama as kategori_nama, p.nama,
                    COALESCE(masuk.total_masuk, 0) as terima,
                    COALESCE(keluar.total_keluar, 0) as keluar,
-                   p.stok as stok_akhir
+                   p.stok as stok_akhir,
+                   (SELECT MAX(DATE(sm.created_at)) FROM stok_mutasi sm WHERE sm.produk_id = p.id) as tgl_transaksi
             FROM produk p
             LEFT JOIN kategori k ON p.kategori_id = k.id
             LEFT JOIN {masuk_sub} masuk ON masuk.pid = p.id

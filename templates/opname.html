@@ -3,36 +3,69 @@
 {% block header %}📋 Stok Opname{% endblock %}
 
 {% block content %}
-<div class="bg-white rounded-xl shadow-sm border p-5 mb-6">
-    <h3 class="font-semibold text-gray-800 mb-4">Input Stok Opname</h3>
-    <form method="post" action="/opname/simpan" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Produk</label>
-            <select name="produk_id" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                <option value="">Pilih produk...</option>
-                {% for p in produk %}
-                <option value="{{ p.id }}">{{ p.nama }} (sistem: {{ p.stok }})</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Stok Fisik (hitungan)</label>
-            <input name="stok_fisik" type="number" min="0" required placeholder="0"
-                   class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-        </div>
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Keterangan</label>
-            <input name="keterangan" placeholder="Opname bulanan, dll"
-                   class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-        </div>
-        <div class="flex items-end">
-            <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
-                📋 Simpan Opname
+<!-- Stok Rincian View -->
+<div class="bg-white rounded-xl shadow-sm border overflow-hidden mb-6">
+    <div class="p-4 border-b flex items-center justify-between">
+        <h3 class="font-semibold text-gray-800">📋 Rincian Stok Saat Ini</h3>
+        <div class="flex items-center gap-2">
+            <button onclick="window.print()" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 font-medium">
+                🖨️ Print Daftar Stok
             </button>
+            <span class="text-sm text-gray-500">{{ produk|length }} item</span>
         </div>
-    </form>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">No</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Kategori</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Nama Barang</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Stok Sistem</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Stok Fisik</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Selisih</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Keterangan</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Aksi</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for p in produk %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 text-gray-500">{{ loop.index }}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">{{ p.kategori_nama or '-' }}</span>
+                    </td>
+                    <td class="px-4 py-3 font-medium text-gray-800">{{ p.nama }}</td>
+                    <td class="px-4 py-3 text-center font-semibold text-blue-600">{{ p.stok }}</td>
+                    <td class="px-4 py-3 text-center">
+                        <input type="number" name="stok_fisik_{{ p.id }}" min="0" value="" placeholder="-"
+                               class="w-20 px-2 py-1 border rounded text-center text-sm focus:ring-2 focus:ring-blue-500">
+                    </td>
+                    <td class="px-4 py-3 text-center text-gray-400" id="selisih_{{ p.id }}">-</td>
+                    <td class="px-4 py-3">
+                        <input type="text" name="keterangan_{{ p.id }}" placeholder=""
+                               class="w-full px-2 py-1 border rounded text-sm focus:ring-2 focus:ring-blue-500">
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        <button onclick="simpanItem({{ p.id }}, {{ p.stok }})" 
+                                class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">
+                            💾 Simpan
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if not produk %}
+    <div class="text-center py-12 text-gray-400">
+        <p class="text-4xl mb-2">📦</p>
+        <p>Belum ada produk</p>
+    </div>
+    {% endif %}
 </div>
 
+<!-- Riwayat Opname -->
 <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
     <div class="p-4 border-b">
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -83,4 +116,70 @@
     <div class="text-center py-12 text-gray-400"><p class="text-4xl mb-2">📋</p><p>Belum ada stok opname</p></div>
     {% endif %}
 </div>
+
+<script>
+function simpanItem(produkId, stokSistem) {
+    const fisikInput = document.querySelector(`input[name="stok_fisik_${produkId}"]`);
+    const keteranganInput = document.querySelector(`input[name="keterangan_${produkId}"]`);
+    
+    if (!fisikInput.value) {
+        alert('Isi stok fisik terlebih dahulu!');
+        fisikInput.focus();
+        return;
+    }
+    
+    const stokFisik = parseInt(fisikInput.value);
+    const keterangan = keteranganInput.value || '';
+    
+    // Create form and submit
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/opname/simpan';
+    
+    const fields = {
+        'produk_id': produkId,
+        'stok_fisik': stokFisik,
+        'keterangan': keterangan
+    };
+    
+    for (const [key, value] of Object.entries(fields)) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = value;
+        form.appendChild(input);
+    }
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+// Auto-calculate selisih when fisik changes
+document.querySelectorAll('input[name^="stok_fisik_"]').forEach(input => {
+    input.addEventListener('input', function() {
+        const produkId = this.name.replace('stok_fisik_', '');
+        const stokSistem = parseInt(this.closest('tr').querySelector('td:nth-child(4)').textContent);
+        const stokFisik = parseInt(this.value) || 0;
+        const selisih = stokFisik - stokSistem;
+        const selisihCell = document.getElementById(`selisih_${produkId}`);
+        
+        if (this.value === '') {
+            selisihCell.textContent = '-';
+            selisihCell.className = 'px-4 py-3 text-center text-gray-400';
+        } else {
+            selisihCell.textContent = (selisih > 0 ? '+' : '') + selisih;
+            selisihCell.className = `px-4 py-3 text-center font-medium ${selisih < 0 ? 'text-red-600' : selisih > 0 ? 'text-green-600' : 'text-gray-500'}`;
+        }
+    });
+});
+</script>
+
+<style>
+@media print {
+    .bg-gray-100, nav, header, .no-print { display: none !important; }
+    .shadow-sm { box-shadow: none !important; }
+    body { background: white !important; }
+    input { border: 1px solid #ccc !important; }
+}
+</style>
 {% endblock %}

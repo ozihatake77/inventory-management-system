@@ -83,13 +83,18 @@
 <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
     <div class="p-4 border-b flex items-center justify-between">
         <h3 class="font-semibold text-gray-800">Data Stok Barang</h3>
-        <span class="text-sm text-gray-500">{{ stok_data|length }} item ditampilkan</span>
+        <div class="flex items-center gap-2">
+            <button onclick="window.print()" class="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 font-medium">
+                🖨️ Print
+            </button>
+            <span class="text-sm text-gray-500">{{ stok_data|length }} item ditampilkan</span>
+        </div>
     </div>
     <div class="overflow-x-auto">
         <table class="w-full text-sm">
             <thead class="bg-gray-50 border-b">
                 <tr>
-                    <th class="px-4 py-3 text-left font-medium text-gray-600">Kode Barang</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Tanggal</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Kategori Barang</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Nama Barang</th>
                     <th class="px-4 py-3 text-center font-medium text-gray-600">Terima</th>
@@ -100,7 +105,7 @@
             <tbody class="divide-y divide-gray-100">
                 {% for item in stok_data %}
                 <tr class="hover:bg-gray-50 transition">
-                    <td class="px-4 py-3 font-mono text-xs text-gray-700">{{ item.kode }}</td>
+                    <td class="px-4 py-3 font-mono text-xs text-gray-700">{{ item.tgl_transaksi or '-' }}</td>
                     <td class="px-4 py-3">
                         <span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">{{ item.kategori_nama or '-' }}</span>
                     </td>
