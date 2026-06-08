@@ -685,47 +685,55 @@ def riwayat_harga_page(request: Request, id: int):
 # ═══════════════════════════════════════════════════════════════════════
 @app.get("/stok", response_class=HTMLResponse)
 @require_auth
-def stok_page(request: Request, q: str = "", filter_kategori: str = "", filter_kode: str = ""):
+def stok_page(request: Request, q: str = "", filter_kategori: str = "", filter_kode: str = "", tgl_dari: str = "", tgl_sampai: str = ""):
     with get_db() as db:
-        # Get all categories for filter dropdown
         kategori_list = db.execute("SELECT * FROM kategori ORDER BY nama").fetchall()
 
-        # Build query with mutasi aggregation
-        query = """
+        # Build date-filtered subqueries
+        masuk_where = "tipe = 'masuk'"
+        keluar_where = "tipe = 'keluar'"
+        masuk_params = []
+        keluar_params = []
+        if tgl_dari:
+            masuk_where += " AND DATE(created_at) >= ?"
+            keluar_where += " AND DATE(created_at) >= ?"
+            masuk_params.append(tgl_dari)
+            keluar_params.append(tgl_dari)
+        if tgl_sampai:
+            masuk_where += " AND DATE(created_at) <= ?"
+            keluar_where += " AND DATE(created_at) <= ?"
+            masuk_params.append(tgl_sampai)
+            keluar_params.append(tgl_sampai)
+
+        masuk_sub = f"(SELECT produk_id as pid, SUM(jumlah) as total_masuk FROM stok_mutasi WHERE {masuk_where} GROUP BY produk_id)"
+        keluar_sub = f"(SELECT produk_id as pid, SUM(jumlah) as total_keluar FROM stok_mutasi WHERE {keluar_where} GROUP BY produk_id)"
+
+        query = f"""
             SELECT p.id, p.kode, k.nama as kategori_nama, p.nama,
                    COALESCE(masuk.total_masuk, 0) as terima,
                    COALESCE(keluar.total_keluar, 0) as keluar,
                    p.stok as stok_akhir
             FROM produk p
             LEFT JOIN kategori k ON p.kategori_id = k.id
-            LEFT JOIN (
-                SELECT produk_id, SUM(jumlah) as total_masuk
-                FROM stok_mutasi WHERE tipe = 'masuk'
-                GROUP BY produk_id
-            ) masuk ON masuk.produk_id = p.id
-            LEFT JOIN (
-                SELECT produk_id, SUM(jumlah) as total_keluar
-                FROM stok_mutasi WHERE tipe = 'keluar'
-                GROUP BY produk_id
-            ) keluar ON keluar.produk_id = p.id
+            LEFT JOIN {masuk_sub} masuk ON masuk.pid = p.id
+            LEFT JOIN {keluar_sub} keluar ON keluar.pid = p.id
             WHERE 1=1
         """
-        params = []
+        # All params: masuk subquery params + keluar subquery params + main filters
+        all_params = masuk_params + keluar_params
 
         if q:
             query += " AND p.nama LIKE ?"
-            params.append(f"%{q}%")
+            all_params.append(f"%{q}%")
         if filter_kategori:
             query += " AND k.nama = ?"
-            params.append(filter_kategori)
+            all_params.append(filter_kategori)
         if filter_kode:
             query += " AND p.kode = ?"
-            params.append(filter_kode)
+            all_params.append(filter_kode)
 
         query += " ORDER BY p.nama"
-        stok_data = db.execute(query, params).fetchall()
-
-        # Get unique kode list for filter dropdown
+        stok_data = db.execute(query, all_params).fetchall()
         kode_list = db.execute("SELECT DISTINCT kode FROM produk ORDER BY kode").fetchall()
 
     return templates.TemplateResponse(request, "stok.html", {
@@ -733,6 +741,7 @@ def stok_page(request: Request, q: str = "", filter_kategori: str = "", filter_k
         "stok_data": stok_data, "kategori_list": kategori_list,
         "kode_list": kode_list, "q": q,
         "filter_kategori": filter_kategori, "filter_kode": filter_kode,
+        "tgl_dari": tgl_dari, "tgl_sampai": tgl_sampai,
     })
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -740,17 +749,26 @@ def stok_page(request: Request, q: str = "", filter_kategori: str = "", filter_k
 # ═══════════════════════════════════════════════════════════════════════
 @app.get("/stok/masuk", response_class=HTMLResponse)
 @require_auth
-def stok_masuk_page(request: Request):
+def stok_masuk_page(request: Request, tgl_dari: str = "", tgl_sampai: str = ""):
     with get_db() as db:
         produk = db.execute("SELECT * FROM produk ORDER BY nama").fetchall()
-        mutasi = db.execute("""
+        where = "m.tipe = 'masuk'"
+        params = []
+        if tgl_dari:
+            where += " AND DATE(m.created_at) >= ?"
+            params.append(tgl_dari)
+        if tgl_sampai:
+            where += " AND DATE(m.created_at) <= ?"
+            params.append(tgl_sampai)
+        mutasi = db.execute(f"""
             SELECT m.*, p.nama as produk_nama, p.kode as produk_kode, u.nama as user_nama
             FROM stok_mutasi m JOIN produk p ON m.produk_id = p.id
             LEFT JOIN users u ON m.user_id = u.id
-            WHERE m.tipe = 'masuk' ORDER BY m.created_at DESC LIMIT 50
-        """).fetchall()
+            WHERE {where} ORDER BY m.created_at DESC LIMIT 50
+        """, params).fetchall()
     return templates.TemplateResponse(request, "stok_masuk.html", {
-        "request": request, "user": request.state.user, "produk": produk, "mutasi": mutasi
+        "request": request, "user": request.state.user, "produk": produk, "mutasi": mutasi,
+        "tgl_dari": tgl_dari, "tgl_sampai": tgl_sampai,
     })
 
 @app.post("/stok/masuk")
@@ -779,17 +797,26 @@ def stok_masuk(request: Request, produk_id: int = Form(...), jumlah: int = Form(
 # ═══════════════════════════════════════════════════════════════════════
 @app.get("/stok/keluar", response_class=HTMLResponse)
 @require_auth
-def stok_keluar_page(request: Request):
+def stok_keluar_page(request: Request, tgl_dari: str = "", tgl_sampai: str = ""):
     with get_db() as db:
         produk = db.execute("SELECT * FROM produk WHERE stok > 0 ORDER BY nama").fetchall()
-        mutasi = db.execute("""
+        where = "m.tipe = 'keluar'"
+        params = []
+        if tgl_dari:
+            where += " AND DATE(m.created_at) >= ?"
+            params.append(tgl_dari)
+        if tgl_sampai:
+            where += " AND DATE(m.created_at) <= ?"
+            params.append(tgl_sampai)
+        mutasi = db.execute(f"""
             SELECT m.*, p.nama as produk_nama, p.kode as produk_kode, u.nama as user_nama
             FROM stok_mutasi m JOIN produk p ON m.produk_id = p.id
             LEFT JOIN users u ON m.user_id = u.id
-            WHERE m.tipe = 'keluar' ORDER BY m.created_at DESC LIMIT 50
-        """).fetchall()
+            WHERE {where} ORDER BY m.created_at DESC LIMIT 50
+        """, params).fetchall()
     return templates.TemplateResponse(request, "stok_keluar.html", {
-        "request": request, "user": request.state.user, "produk": produk, "mutasi": mutasi
+        "request": request, "user": request.state.user, "produk": produk, "mutasi": mutasi,
+        "tgl_dari": tgl_dari, "tgl_sampai": tgl_sampai,
     })
 
 @app.post("/stok/keluar")
@@ -885,13 +912,24 @@ def api_pending_approvals(request: Request):
 # ═══════════════════════════════════════════════════════════════════════
 @app.get("/penjualan", response_class=HTMLResponse)
 @require_auth
-def penjualan_page(request: Request, periode: str = "hari"):
+def penjualan_page(request: Request, periode: str = "hari", tgl_dari: str = "", tgl_sampai: str = ""):
     with get_db() as db:
         today = datetime.now().strftime("%Y-%m-%d")
         bulan_ini = datetime.now().strftime("%Y-%m")
         minggu_lalu = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
 
-        if periode == "hari": where = f"DATE(pen.created_at) = '{today}'"
+        params = []
+        if tgl_dari or tgl_sampai:
+            # Custom date range takes priority over periode
+            periode = "custom"
+            where = "1=1"
+            if tgl_dari:
+                where += " AND DATE(pen.created_at) >= ?"
+                params.append(tgl_dari)
+            if tgl_sampai:
+                where += " AND DATE(pen.created_at) <= ?"
+                params.append(tgl_sampai)
+        elif periode == "hari": where = f"DATE(pen.created_at) = '{today}'"
         elif periode == "minggu": where = f"DATE(pen.created_at) >= '{minggu_lalu}'"
         elif periode == "bulan": where = f"strftime('%Y-%m', pen.created_at) = '{bulan_ini}'"
         else: where = "1=1"
@@ -902,12 +940,12 @@ def penjualan_page(request: Request, periode: str = "hari"):
             FROM penjualan pen JOIN produk pr ON pen.produk_id = pr.id
             LEFT JOIN users u ON pen.user_id = u.id
             WHERE {where} ORDER BY pen.created_at DESC
-        """).fetchall()
+        """, params).fetchall()
 
         totals = db.execute(f"""
             SELECT COALESCE(SUM(pen.total), 0), COALESCE(SUM(pen.keuntungan), 0), COUNT(*)
             FROM penjualan pen WHERE {where}
-        """).fetchone()
+        """, params).fetchone()
 
         produk = db.execute("SELECT * FROM produk WHERE stok > 0 ORDER BY nama").fetchall()
 
@@ -922,9 +960,10 @@ def penjualan_page(request: Request, periode: str = "hari"):
             """).fetchall()
 
     return templates.TemplateResponse(request, "penjualan.html", {
-        "request": request, "user": request.state.user, "penjualan": penjualan,
-        "totals": totals, "periode": periode, "produk": produk, "approvals": approvals
-    })
+            "request": request, "user": request.state.user, "penjualan": penjualan,
+            "totals": totals, "periode": periode, "produk": produk, "approvals": approvals,
+            "tgl_dari": tgl_dari, "tgl_sampai": tgl_sampai,
+        })
 
 @app.post("/penjualan/tambah")
 @require_auth
@@ -1094,20 +1133,29 @@ def hutang_bayar(request: Request, hutang_id: int = Form(...), jumlah: float = F
 # ═══════════════════════════════════════════════════════════════════════
 @app.get("/opname", response_class=HTMLResponse)
 @require_auth
-def opname_page(request: Request):
+def opname_page(request: Request, tgl_dari: str = "", tgl_sampai: str = ""):
     with get_db() as db:
         produk = db.execute("""
             SELECT p.*, k.nama as kategori_nama FROM produk p
             LEFT JOIN kategori k ON p.kategori_id = k.id ORDER BY p.nama
         """).fetchall()
-        riwayat = db.execute("""
+        where = "1=1"
+        params = []
+        if tgl_dari:
+            where += " AND DATE(o.created_at) >= ?"
+            params.append(tgl_dari)
+        if tgl_sampai:
+            where += " AND DATE(o.created_at) <= ?"
+            params.append(tgl_sampai)
+        riwayat = db.execute(f"""
             SELECT o.*, p.nama as produk_nama, p.kode as produk_kode, u.nama as user_nama
             FROM stok_opname o JOIN produk p ON o.produk_id = p.id
             LEFT JOIN users u ON o.user_id = u.id
-            ORDER BY o.created_at DESC LIMIT 50
-        """).fetchall()
+            WHERE {where} ORDER BY o.created_at DESC LIMIT 50
+        """, params).fetchall()
     return templates.TemplateResponse(request, "opname.html", {
-        "request": request, "user": request.state.user, "produk": produk, "riwayat": riwayat
+        "request": request, "user": request.state.user, "produk": produk, "riwayat": riwayat,
+        "tgl_dari": tgl_dari, "tgl_sampai": tgl_sampai,
     })
 
 @app.post("/opname/simpan")
