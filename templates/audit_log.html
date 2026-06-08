@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Audit Log{% endblock %}
+{% block header %}📋 Audit Log{% endblock %}
+
+{% block content %}
+<!-- Stats Cards -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-xl">📊</div>
+            <div>
+                <p class="text-xs text-gray-500">Total Log</p>
+                <p class="text-lg font-bold text-gray-800">{{ stats.total }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center text-xl">🔐</div>
+            <div>
+                <p class="text-xs text-gray-500">Autentikasi</p>
+                <p class="text-lg font-bold text-gray-800">{{ stats.login }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center text-xl">💰</div>
+            <div>
+                <p class="text-xs text-gray-500">Penjualan</p>
+                <p class="text-lg font-bold text-gray-800">{{ stats.penjualan }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center text-xl">📦</div>
+            <div>
+                <p class="text-xs text-gray-500">Stok</p>
+                <p class="text-lg font-bold text-gray-800">{{ stats.stok }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="bg-white rounded-xl shadow-sm border p-4 mb-4">
+    <form method="get" action="/audit-log" class="flex flex-wrap gap-3 items-end">
+        <div class="flex-1 min-w-[200px]">
+            <label class="text-xs text-gray-500 mb-1 block">Cari</label>
+            <input type="text" name="q" value="{{ q }}" placeholder="Cari user, aksi, detail..."
+                   class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+        </div>
+        <div class="min-w-[150px]">
+            <label class="text-xs text-gray-500 mb-1 block">Kategori</label>
+            <select name="kategori" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                <option value="">Semua</option>
+                <option value="autentikasi" {% if kategori == 'autentikasi' %}selected{% endif %}>Autentikasi</option>
+                <option value="penjualan" {% if kategori == 'penjualan' %}selected{% endif %}>Penjualan</option>
+                <option value="stok" {% if kategori == 'stok' %}selected{% endif %}>Stok</option>
+                <option value="produk" {% if kategori == 'produk' %}selected{% endif %}>Produk</option>
+                <option value="approval" {% if kategori == 'approval' %}selected{% endif %}>Approval</option>
+                <option value="user" {% if kategori == 'user' %}selected{% endif %}>User</option>
+                <option value="sistem" {% if kategori == 'sistem' %}selected{% endif %}>Sistem</option>
+            </select>
+        </div>
+        <div class="min-w-[140px]">
+            <label class="text-xs text-gray-500 mb-1 block">Dari</label>
+            <input type="date" name="tgl_dari" value="{{ tgl_dari }}"
+                   class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div class="min-w-[140px]">
+            <label class="text-xs text-gray-500 mb-1 block">Sampai</label>
+            <input type="date" name="tgl_sampai" value="{{ tgl_sampai }}"
+                   class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+        </div>
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition">
+            🔍 Filter
+        </button>
+        {% if q or kategori or tgl_dari or tgl_sampai %}
+        <a href="/audit-log" class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-200 transition">
+            ✕ Reset
+        </a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Table -->
+<div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+    {% if logs %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-gray-50 border-b">
+                    <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase">Waktu</th>
+                    <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase">User</th>
+                    <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase">Role</th>
+                    <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase">Aksi</th>
+                    <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase">Kategori</th>
+                    <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase">Detail</th>
+                    <th class="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase hidden lg:table-cell">IP</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for log in logs %}
+                <tr class="hover:bg-gray-50 transition
+                    {% if log.kategori == 'autentikasi' %}border-l-4 border-l-blue-400
+                    {% elif log.kategori == 'penjualan' %}border-l-4 border-l-green-400
+                    {% elif log.kategori == 'stok' %}border-l-4 border-l-orange-400
+                    {% elif log.kategori == 'produk' %}border-l-4 border-l-purple-400
+                    {% elif log.kategori == 'approval' %}border-l-4 border-l-yellow-400
+                    {% elif log.kategori == 'user' %}border-l-4 border-l-red-400
+                    {% elif log.kategori == 'sistem' %}border-l-4 border-l-gray-400
+                    {% endif %}">
+                    <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{{ log.created_at|format_date }}</td>
+                    <td class="px-4 py-3 font-medium text-gray-800">{{ log.username }}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-0.5 rounded-full text-xs font-semibold
+                            {% if log.role == 'bos' %}bg-red-100 text-red-700
+                            {% elif log.role == 'og' %}bg-orange-100 text-orange-700
+                            {% else %}bg-blue-100 text-blue-700{% endif %}">
+                            {{ log.role|upper }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-gray-700">{{ log.aksi }}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-0.5 rounded-full text-xs font-semibold
+                            {% if log.kategori == 'autentikasi' %}bg-blue-100 text-blue-700
+                            {% elif log.kategori == 'penjualan' %}bg-green-100 text-green-700
+                            {% elif log.kategori == 'stok' %}bg-orange-100 text-orange-700
+                            {% elif log.kategori == 'produk' %}bg-purple-100 text-purple-700
+                            {% elif log.kategori == 'approval' %}bg-yellow-100 text-yellow-700
+                            {% elif log.kategori == 'user' %}bg-red-100 text-red-700
+                            {% else %}bg-gray-100 text-gray-700{% endif %}">
+                            {{ log.kategori }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-gray-600 text-xs max-w-[300px] truncate">{{ log.detail }}</td>
+                    <td class="px-4 py-3 text-xs text-gray-400 hidden lg:table-cell">{{ log.ip_address }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="px-4 py-3 bg-gray-50 border-t text-xs text-gray-500">
+        Menampilkan {{ logs|length }} log terbaru (maks 500)
+    </div>
+    {% else %}
+    <div class="text-center py-16 text-gray-400">
+        <p class="text-5xl mb-3">📋</p>
+        <p class="text-lg font-medium">Belum ada log aktivitas</p>
+        <p class="text-sm mt-1">Log akan muncul setelah ada aktivitas pengguna</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

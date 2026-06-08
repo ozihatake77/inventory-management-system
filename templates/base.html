@@ -98,6 +98,13 @@
         </a>
         {% endif %}
 
+        {% if user and user.role in ['bos', 'og'] %}
+        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Sistem</div>
+        <a href="/audit-log" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/audit-log' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>📋</span> Audit Log
+        </a>
+        {% endif %}
+
         {% if user and user.role == 'bos' %}
         <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Admin</div>
         <a href="/users" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/users' in request.url.path %}bg-blue-700 font-medium{% endif %}">
@@ -177,5 +184,57 @@
 </div>
 
 {% block scripts %}{% endblock %}
+
+<!-- Session Timeout Handler (8 hours) -->
+{% if user and user.login_at %}
+<script>
+(function() {
+    const TIMEOUT = 8 * 60 * 60 * 1000; // 8 hours
+    const WARNING = 5 * 60 * 1000; // 5 minutes before
+    const loginTime = "{{ user.login_at }}";
+    
+    if (!loginTime) return;
+    
+    const loginDate = new Date(loginTime);
+    const expiryDate = new Date(loginDate.getTime() + TIMEOUT);
+    
+    function checkSession() {
+        const now = new Date();
+        const remaining = expiryDate - now;
+        
+        if (remaining <= 0) {
+            window.location.href = '/logout?reason=timeout';
+            return;
+        }
+        
+        if (remaining <= WARNING && !document.getElementById('session-warning')) {
+            const mins = Math.ceil(remaining / 60000);
+            const warning = document.createElement('div');
+            warning.id = 'session-warning';
+            warning.className = 'fixed top-4 right-4 z-50 bg-yellow-50 border-2 border-yellow-400 rounded-xl p-4 shadow-2xl max-w-sm';
+            warning.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">⏰</span>
+                    <div>
+                        <p class="font-bold text-yellow-800">Session Hampir Habis!</p>
+                        <p class="text-sm text-yellow-700">Anda akan logout dalam <span id="countdown">${mins}</span> menit</p>
+                    </div>
+                    <button onclick="this.parentElement.parentElement.remove()" class="text-yellow-500 hover:text-yellow-700">✕</button>
+                </div>
+            `;
+            document.body.appendChild(warning);
+        }
+        
+        const countdown = document.getElementById('countdown');
+        if (countdown) {
+            countdown.textContent = Math.ceil(remaining / 60000);
+        }
+    }
+    
+    checkSession();
+    setInterval(checkSession, 30000); // Check every 30 seconds
+})();
+</script>
+{% endif %}
 </body>
 </html>

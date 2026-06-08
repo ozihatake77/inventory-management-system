@@ -206,12 +206,27 @@ def init_db():
             FOREIGN KEY (karyawan_id) REFERENCES users(id) ON DELETE SET NULL,
             FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
         );
+
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            username TEXT NOT NULL,
+            role TEXT NOT NULL,
+            aksi TEXT NOT NULL,
+            kategori TEXT NOT NULL,
+            detail TEXT DEFAULT '',
+            ip_address TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+        );
         """)
 
         # ── Migrations for existing DBs ────────────────────────────────
         for col in ['harga_bottom']:
             try: db.execute(f"ALTER TABLE produk ADD COLUMN {col} REAL DEFAULT 0")
             except: pass
+        try: db.execute("ALTER TABLE users ADD COLUMN login_at TIMESTAMP")
+        except: pass
         for col in ['nama_customer', 'alamat_customer', 'hp_customer', 'email_customer']:
             try: db.execute(f"ALTER TABLE penjualan ADD COLUMN {col} TEXT DEFAULT ''")
             except: pass
@@ -387,6 +402,15 @@ def require_auth(f):
         user = get_current_user(request)
         if not user:
             return RedirectResponse("/login", status_code=303)
+        # Check 8-hour session timeout
+        if user.get('login_at'):
+            login_time = datetime.fromisoformat(user['login_at'])
+            if datetime.now() - login_time > timedelta(hours=8):
+                with get_db() as db:
+                    db.execute("UPDATE users SET session_token=NULL, login_at=NULL WHERE id=?", (user['id'],))
+                response = RedirectResponse("/login", status_code=303)
+                response.delete_cookie("session_token")
+                return response
         request.state.user = user
         return f(request, *args, **kwargs)
     return decorated
@@ -397,6 +421,14 @@ def require_bos(f):
         user = get_current_user(request)
         if not user:
             return RedirectResponse("/login", status_code=303)
+        if user.get('login_at'):
+            login_time = datetime.fromisoformat(user['login_at'])
+            if datetime.now() - login_time > timedelta(hours=8):
+                with get_db() as db:
+                    db.execute("UPDATE users SET session_token=NULL, login_at=NULL WHERE id=?", (user['id'],))
+                response = RedirectResponse("/login", status_code=303)
+                response.delete_cookie("session_token")
+                return response
         if user["role"] != "bos":
             return RedirectResponse("/?error=unauthorized", status_code=303)
         request.state.user = user
@@ -409,6 +441,14 @@ def require_bos_or_og(f):
         user = get_current_user(request)
         if not user:
             return RedirectResponse("/login", status_code=303)
+        if user.get('login_at'):
+            login_time = datetime.fromisoformat(user['login_at'])
+            if datetime.now() - login_time > timedelta(hours=8):
+                with get_db() as db:
+                    db.execute("UPDATE users SET session_token=NULL, login_at=NULL WHERE id=?", (user['id'],))
+                response = RedirectResponse("/login", status_code=303)
+                response.delete_cookie("session_token")
+                return response
         if user["role"] not in ("bos", "og"):
             return RedirectResponse("/?error=unauthorized", status_code=303)
         request.state.user = user
@@ -416,6 +456,14 @@ def require_bos_or_og(f):
     return decorated
 
 # ── Notification Helper ─────────────────────────────────────────────────
+def log_audit(db, user, aksi, kategori, detail="", ip=""):
+    """Log user activity for audit trail"""
+    if user:
+        db.execute(
+            "INSERT INTO audit_log (user_id, username, role, aksi, kategori, detail, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (user['id'], user['username'], user['role'], aksi, kategori, detail, ip)
+        )
+
 def add_notif(tipe, pesan, link=""):
     with get_db() as db:
         db.execute("INSERT INTO notifikasi (tipe, pesan, link) VALUES (?, ?, ?)", (tipe, pesan, link))
@@ -467,16 +515,29 @@ def login(request: Request, response: Response, username: str = Form(...), passw
     with get_db() as db:
         user = db.execute("SELECT * FROM users WHERE username=? AND password_hash=? AND aktif=1",
                           (username, pw_hash)).fetchone()
-    if not user:
-        return templates.TemplateResponse(request, "login.html", {"error": "Username atau password salah!"})
+        if not user:
+            return templates.TemplateResponse(request, "login.html", {"error": "Username atau password salah!"})
+        token = user["username"]
+        db.execute("UPDATE users SET session_token=?, login_at=? WHERE id=?", (token, datetime.now().isoformat(), user['id']))
+        log_audit(db, user, "Login", "autentikasi", "Login berhasil", request.client.host)
     response = RedirectResponse("/", status_code=303)
-    response.set_cookie("session_token", user["username"], max_age=86400)
+    response.set_cookie("session_token", token, max_age=86400)
     return response
 
 @app.get("/logout")
-def logout():
+def logout(request: Request, reason: str = ""):
+    user = get_current_user(request)
+    if user:
+        with get_db() as db:
+            if reason == "timeout":
+                log_audit(db, user, "Auto Logout", "autentikasi", "Session expired (8 jam)", request.client.host)
+            else:
+                log_audit(db, user, "Logout", "autentikasi", "Manual logout", request.client.host)
+            db.execute("UPDATE users SET session_token=NULL, login_at=NULL WHERE id=?", (user['id'],))
     response = RedirectResponse("/login", status_code=303)
     response.delete_cookie("session_token")
+    if reason == "timeout":
+        response.set_cookie("flash_msg", "Session expired. Silakan login kembali.", max_age=5)
     return response
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -637,6 +698,7 @@ def produk_tambah(request: Request, barcode: str = Form(""),
             INSERT INTO produk (kode, barcode, nama, kategori_id, harga_modal, harga_jual, harga_bottom, stok, stok_minimum, satuan)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (kode, barcode, nama, kategori_id if kategori_id else None, harga_modal, harga_jual, harga_bottom, stok, stok_minimum, satuan))
+        log_audit(db, request.state.user, "Tambah Produk", "produk", f"{nama} - Harga: Rp {harga_jual:,.0f}", request.client.host)
     return RedirectResponse("/produk", status_code=303)
 
 @app.post("/produk/edit/{id}")
@@ -657,12 +719,16 @@ def produk_edit(request: Request, id: int, barcode: str = Form(""),
             UPDATE produk SET barcode=?, nama=?, kategori_id=?, harga_modal=?, harga_jual=?,
             harga_bottom=?, stok_minimum=?, satuan=?, updated_at=CURRENT_TIMESTAMP WHERE id=?
         """, (barcode, nama, kategori_id if kategori_id else None, harga_modal, harga_jual, harga_bottom, stok_minimum, satuan, id))
+        log_audit(db, request.state.user, "Edit Produk", "produk", f"ID {id}: {nama}", request.client.host)
     return RedirectResponse("/produk", status_code=303)
 
 @app.get("/produk/hapus/{id}")
 @require_bos_or_og
 def produk_hapus(request: Request, id: int):
     with get_db() as db:
+        old = db.execute("SELECT * FROM produk WHERE id=?", (id,)).fetchone()
+        if old:
+            log_audit(db, request.state.user, "Hapus Produk", "produk", f"ID {id}: {old['nama']}", request.client.host)
         db.execute("DELETE FROM produk WHERE id=?", (id,))
     return RedirectResponse("/produk", status_code=303)
 
@@ -789,6 +855,7 @@ def stok_masuk(request: Request, produk_id: int = Form(...), jumlah: int = Form(
                     VALUES (?, ?, ?, ?, ?, ?)
                 """, (produk_id, old["harga_modal"], old["harga_jual"], harga_satuan, old["harga_jual"], request.state.user["id"]))
             db.execute("UPDATE produk SET harga_modal = ? WHERE id = ?", (harga_satuan, produk_id))
+        log_audit(db, request.state.user, "Stok Masuk", "stok", f"Produk ID {produk_id} +{jumlah}", request.client.host)
     check_low_stock()
     return RedirectResponse("/stok/masuk", status_code=303)
 
@@ -832,6 +899,7 @@ def stok_keluar(request: Request, produk_id: int = Form(...), jumlah: int = Form
             INSERT INTO stok_mutasi (produk_id, tipe, jumlah, harga_satuan, user_id, keterangan)
             VALUES (?, 'keluar', ?, ?, ?, ?)
         """, (produk_id, jumlah, produk["harga_jual"], request.state.user["id"], keterangan))
+        log_audit(db, request.state.user, "Stok Keluar", "stok", f"Produk ID {produk_id} -{jumlah} ({keterangan})", request.client.host)
     check_low_stock()
     return RedirectResponse("/stok/keluar", status_code=303)
 
@@ -885,6 +953,7 @@ def approval_approve(request: Request, id: int):
                        (user["id"], id))
             db.execute("INSERT INTO notifikasi (tipe, pesan, link) VALUES ('approval_done', ?, '/penjualan')",
                        (f"Diskon DISETUJUI oleh {user['nama']}: Rp {approval['harga_diminta']:,.0f}",))
+            log_audit(db, user, "Approve Diskon", "approval", f"Approval #{id}", request.client.host)
     return RedirectResponse("/approval", status_code=303)
 
 @app.post("/approval/reject/{id}")
@@ -898,6 +967,7 @@ def approval_reject(request: Request, id: int):
                        (user["id"], id))
             db.execute("INSERT INTO notifikasi (tipe, pesan, link) VALUES ('approval_done', ?, '/penjualan')",
                        (f"Diskon DITOLAK oleh {user['nama']}: Rp {approval['harga_diminta']:,.0f}",))
+            log_audit(db, user, "Reject Diskon", "approval", f"Approval #{id}", request.client.host)
     return RedirectResponse("/approval", status_code=303)
 
 @app.get("/api/approvals/pending")
@@ -1012,6 +1082,9 @@ def penjualan_tambah(request: Request, produk_id: int = Form(...), jumlah: int =
             """, (penjualan_id, total, total, jatuh_tempo, f"Customer: {nama_customer}"))
             db.execute("INSERT INTO notifikasi (tipe, pesan, link) VALUES ('hutang', ?, ?)",
                        (f"Hutang baru: Rp {total:,.0f} - jatuh tempo {jatuh_tempo}", "/hutang"))
+
+        nama = produk['nama']
+        log_audit(db, request.state.user, "Tambah Penjualan", "penjualan", f"Produk: {nama} x{jumlah} = Rp {total:,.0f} ({metode_bayar})", request.client.host)
 
     check_low_stock()
     return RedirectResponse(f"/penjualan/nota/{penjualan_id}?print=1", status_code=303)
@@ -1261,6 +1334,7 @@ def users_tambah(request: Request, username: str = Form(...), password: str = Fo
     with get_db() as db:
         db.execute("INSERT INTO users (username, password_hash, nama, role) VALUES (?, ?, ?, ?)",
                    (username, pw_hash, nama, role))
+        log_audit(db, request.state.user, "Tambah User", "user", f"User: {username} ({role})", request.client.host)
     return RedirectResponse("/users", status_code=303)
 
 @app.post("/users/edit/{id}")
@@ -1274,6 +1348,7 @@ def users_edit(request: Request, id: int, nama: str = Form(...), role: str = For
                        (nama, role, pw_hash, aktif, id))
         else:
             db.execute("UPDATE users SET nama=?, role=?, aktif=? WHERE id=?", (nama, role, aktif, id))
+        log_audit(db, request.state.user, "Edit User", "user", f"User ID {id}: {nama} ({role})", request.client.host)
     return RedirectResponse("/users", status_code=303)
 
 @app.get("/users/hapus/{id}")
@@ -1298,7 +1373,8 @@ def backup_page(request: Request):
 @app.post("/backup/buat")
 @require_bos_or_og
 def backup_buat(request: Request):
-
+    with get_db() as db:
+        log_audit(db, request.state.user, "Backup Database", "sistem", "Backup manual dibuat", request.client.host)
     auto_backup()
     return RedirectResponse("/backup", status_code=303)
 
@@ -1319,6 +1395,43 @@ def backup_restore(request: Request, filename: str):
         auto_backup()
         shutil.copy2(filepath, DB_PATH)
     return RedirectResponse("/backup?restored=1", status_code=303)
+
+# ═══════════════════════════════════════════════════════════════════════
+# ROUTES: AUDIT LOG
+# ═══════════════════════════════════════════════════════════════════════
+@app.get("/audit-log", response_class=HTMLResponse)
+@require_bos_or_og
+def audit_log_page(request: Request, q: str = "", kategori: str = "", tgl_dari: str = "", tgl_sampai: str = ""):
+    with get_db() as db:
+        query = "SELECT * FROM audit_log WHERE 1=1"
+        params = []
+        if q:
+            query += " AND (username LIKE ? OR aksi LIKE ? OR detail LIKE ?)"
+            params.extend([f"%{q}%", f"%{q}%", f"%{q}%"])
+        if kategori:
+            query += " AND kategori = ?"
+            params.append(kategori)
+        if tgl_dari:
+            query += " AND DATE(created_at) >= ?"
+            params.append(tgl_dari)
+        if tgl_sampai:
+            query += " AND DATE(created_at) <= ?"
+            params.append(tgl_sampai)
+        query += " ORDER BY created_at DESC LIMIT 500"
+        logs = db.execute(query, params).fetchall()
+        stats = {
+            "total": len(logs),
+            "login": len([l for l in logs if l['kategori'] == 'autentikasi']),
+            "penjualan": len([l for l in logs if l['kategori'] == 'penjualan']),
+            "stok": len([l for l in logs if l['kategori'] == 'stok']),
+        }
+        # Get unread count for base template
+        notif_count = db.execute("SELECT COUNT(*) FROM notifikasi WHERE dibaca=0").fetchone()[0]
+    return templates.TemplateResponse(request, "audit_log.html", {
+        "request": request, "user": request.state.user, "logs": logs, "stats": stats,
+        "q": q, "kategori": kategori, "tgl_dari": tgl_dari, "tgl_sampai": tgl_sampai,
+        "notif_count": notif_count
+    })
 
 # ═══════════════════════════════════════════════════════════════════════
 # ROUTES: EXPORT EXCEL
