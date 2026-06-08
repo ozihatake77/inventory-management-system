@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Stok Barang{% endblock %}
+{% block header %}📦 Stok Barang{% endblock %}
+
+{% block content %}
+<!-- Search & Filter Bar -->
+<div class="bg-white rounded-xl shadow-sm border p-5 mb-6">
+    <form method="get" action="/stok" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <!-- Search by name -->
+        <div class="lg:col-span-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">🔍 Cari Nama Barang</label>
+            <input type="text" name="q" value="{{ q }}" placeholder="Ketik nama barang..."
+                   class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+        </div>
+        <!-- Filter: Kategori -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">🏷️ Kategori</label>
+            <select name="filter_kategori" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                <option value="">Semua Kategori</option>
+                {% for k in kategori_list %}
+                <option value="{{ k.nama }}" {% if filter_kategori == k.nama %}selected{% endif %}>{{ k.nama }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <!-- Filter: Kode -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">📋 Kode Barang</label>
+            <select name="filter_kode" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                <option value="">Semua Kode</option>
+                {% for k in kode_list %}
+                <option value="{{ k.kode }}" {% if filter_kode == k.kode %}selected{% endif %}>{{ k.kode }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <!-- Buttons -->
+        <div class="flex items-end gap-2">
+            <button type="submit" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm">
+                🔍 Filter
+            </button>
+            <a href="/stok" class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 font-medium text-sm border">
+                ↺ Reset
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- Summary Cards -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">Total Barang</p>
+        <p class="text-2xl font-bold text-gray-800">{{ stok_data|length }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">Total Terima</p>
+        <p class="text-2xl font-bold text-green-600">{{ stok_data|sum(attribute='terima') }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">Total Keluar</p>
+        <p class="text-2xl font-bold text-red-600">{{ stok_data|sum(attribute='keluar') }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">Total Stok Akhir</p>
+        <p class="text-2xl font-bold text-blue-600">{{ stok_data|sum(attribute='stok_akhir') }}</p>
+    </div>
+</div>
+
+<!-- Data Table -->
+<div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+    <div class="p-4 border-b flex items-center justify-between">
+        <h3 class="font-semibold text-gray-800">Data Stok Barang</h3>
+        <span class="text-sm text-gray-500">{{ stok_data|length }} item ditampilkan</span>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Kode Barang</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Kategori Barang</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Nama Barang</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Terima</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Keluar</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Stok Akhir</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for item in stok_data %}
+                <tr class="hover:bg-gray-50 transition">
+                    <td class="px-4 py-3 font-mono text-xs text-gray-700">{{ item.kode }}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">{{ item.kategori_nama or '-' }}</span>
+                    </td>
+                    <td class="px-4 py-3 font-medium text-gray-800">{{ item.nama }}</td>
+                    <td class="px-4 py-3 text-center">
+                        {% if item.terima > 0 %}
+                        <span class="text-green-600 font-semibold">+{{ item.terima }}</span>
+                        {% else %}
+                        <span class="text-gray-400">0</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        {% if item.keluar > 0 %}
+                        <span class="text-red-600 font-semibold">-{{ item.keluar }}</span>
+                        {% else %}
+                        <span class="text-gray-400">0</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        {% if item.stok_akhir == 0 %}
+                        <span class="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold">Habis</span>
+                        {% elif item.stok_akhir <= 5 %}
+                        <span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-bold">{{ item.stok_akhir }}</span>
+                        {% else %}
+                        <span class="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">{{ item.stok_akhir }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if not stok_data %}
+    <div class="text-center py-12 text-gray-400">
+        <p class="text-4xl mb-2">📦</p>
+        <p>Tidak ada data stok ditemukan</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

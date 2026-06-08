@@ -59,21 +59,26 @@
             <span>👥</span> Pelanggan
         </a>
 
-        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Stok</div>
+        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Stok Barang</div>
+        <a href="/stok" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if request.url.path == '/stok' %}bg-blue-700 font-medium{% endif %}">
+            <span>📦</span> Stok
+        </a>
+        <a href="/opname" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/opname' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>📋</span> Stok Opname
+        </a>
+
+        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Transaksi</div>
         <a href="/stok/masuk" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/stok/masuk' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>📥</span> Stok Masuk
         </a>
         <a href="/stok/keluar" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/stok/keluar' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>📤</span> Stok Keluar
         </a>
-        <a href="/opname" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/opname' in request.url.path %}bg-blue-700 font-medium{% endif %}">
-            <span>📋</span> Stok Opname
-        </a>
-
-        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Keuangan</div>
         <a href="/penjualan" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/penjualan' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>💰</span> Penjualan
         </a>
+
+        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Keuangan</div>
         <a href="/hutang" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/hutang' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>💳</span> Hutang/Piutang
         </a>

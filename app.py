@@ -681,6 +681,61 @@ def riwayat_harga_page(request: Request, id: int):
     })
 
 # ═══════════════════════════════════════════════════════════════════════
+# ROUTES: STOK (Overview Semua Barang)
+# ═══════════════════════════════════════════════════════════════════════
+@app.get("/stok", response_class=HTMLResponse)
+@require_auth
+def stok_page(request: Request, q: str = "", filter_kategori: str = "", filter_kode: str = ""):
+    with get_db() as db:
+        # Get all categories for filter dropdown
+        kategori_list = db.execute("SELECT * FROM kategori ORDER BY nama").fetchall()
+
+        # Build query with mutasi aggregation
+        query = """
+            SELECT p.id, p.kode, k.nama as kategori_nama, p.nama,
+                   COALESCE(masuk.total_masuk, 0) as terima,
+                   COALESCE(keluar.total_keluar, 0) as keluar,
+                   p.stok as stok_akhir
+            FROM produk p
+            LEFT JOIN kategori k ON p.kategori_id = k.id
+            LEFT JOIN (
+                SELECT produk_id, SUM(jumlah) as total_masuk
+                FROM stok_mutasi WHERE tipe = 'masuk'
+                GROUP BY produk_id
+            ) masuk ON masuk.produk_id = p.id
+            LEFT JOIN (
+                SELECT produk_id, SUM(jumlah) as total_keluar
+                FROM stok_mutasi WHERE tipe = 'keluar'
+                GROUP BY produk_id
+            ) keluar ON keluar.produk_id = p.id
+            WHERE 1=1
+        """
+        params = []
+
+        if q:
+            query += " AND p.nama LIKE ?"
+            params.append(f"%{q}%")
+        if filter_kategori:
+            query += " AND k.nama = ?"
+            params.append(filter_kategori)
+        if filter_kode:
+            query += " AND p.kode = ?"
+            params.append(filter_kode)
+
+        query += " ORDER BY p.nama"
+        stok_data = db.execute(query, params).fetchall()
+
+        # Get unique kode list for filter dropdown
+        kode_list = db.execute("SELECT DISTINCT kode FROM produk ORDER BY kode").fetchall()
+
+    return templates.TemplateResponse(request, "stok.html", {
+        "request": request, "user": request.state.user,
+        "stok_data": stok_data, "kategori_list": kategori_list,
+        "kode_list": kode_list, "q": q,
+        "filter_kategori": filter_kategori, "filter_kode": filter_kode,
+    })
+
+# ═══════════════════════════════════════════════════════════════════════
 # ROUTES: STOK MASUK
 # ═══════════════════════════════════════════════════════════════════════
 @app.get("/stok/masuk", response_class=HTMLResponse)
