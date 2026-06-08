@@ -227,6 +227,8 @@ def init_db():
             except: pass
         try: db.execute("ALTER TABLE users ADD COLUMN login_at TIMESTAMP")
         except: pass
+        try: db.execute("ALTER TABLE users ADD COLUMN session_token TEXT")
+        except: pass
         for col in ['nama_customer', 'alamat_customer', 'hp_customer', 'email_customer']:
             try: db.execute(f"ALTER TABLE penjualan ADD COLUMN {col} TEXT DEFAULT ''")
             except: pass
