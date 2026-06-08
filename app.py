@@ -1699,6 +1699,13 @@ def kategori_hapus(request: Request, id: int):
         db.execute("DELETE FROM kategori WHERE id=?", (id,))
     return RedirectResponse("/kategori", status_code=303)
 
+@app.post("/kategori/edit/{id}")
+@require_bos_or_og
+def kategori_edit(request: Request, id: int, nama: str = Form(...)):
+    with get_db() as db:
+        db.execute("UPDATE kategori SET nama=? WHERE id=?", (nama, id))
+    return RedirectResponse("/kategori", status_code=303)
+
 # ═══════════════════════════════════════════════════════════════════════
 # ROUTES: USER MANAGEMENT (BOS ONLY)
 # ═══════════════════════════════════════════════════════════════════════
