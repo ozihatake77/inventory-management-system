@@ -405,7 +405,7 @@ def require_auth(f):
         if not user:
             return RedirectResponse("/login", status_code=303)
         # Check 8-hour session timeout
-        if user.get('login_at'):
+        if user['login_at']:
             login_time = datetime.fromisoformat(user['login_at'])
             if datetime.now() - login_time > timedelta(hours=8):
                 with get_db() as db:
@@ -423,7 +423,7 @@ def require_bos(f):
         user = get_current_user(request)
         if not user:
             return RedirectResponse("/login", status_code=303)
-        if user.get('login_at'):
+        if user['login_at']:
             login_time = datetime.fromisoformat(user['login_at'])
             if datetime.now() - login_time > timedelta(hours=8):
                 with get_db() as db:
@@ -443,7 +443,7 @@ def require_bos_or_og(f):
         user = get_current_user(request)
         if not user:
             return RedirectResponse("/login", status_code=303)
-        if user.get('login_at'):
+        if user['login_at']:
             login_time = datetime.fromisoformat(user['login_at'])
             if datetime.now() - login_time > timedelta(hours=8):
                 with get_db() as db:
