@@ -9,8 +9,10 @@
                class="px-3 py-2 border rounded-lg text-sm w-48 focus:ring-2 focus:ring-blue-500">
         <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">🔍</button>
     </form>
+    {% if user.role in ['bos', 'og'] %}
     <button onclick="document.getElementById('modalTambah').classList.remove('hidden')"
             class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">➕ Tambah Pelanggan</button>
+    {% endif %}
 </div>
 
 <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -22,7 +24,9 @@
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Telepon</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Alamat</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Email</th>
+                    {% if user.role in ['bos', 'og'] %}
                     <th class="px-4 py-3 text-center font-medium text-gray-600">Aksi</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -32,14 +36,16 @@
                     <td class="px-4 py-3">{{ p.telepon or '-' }}</td>
                     <td class="px-4 py-3 text-gray-500">{{ p.alamat or '-' }}</td>
                     <td class="px-4 py-3 text-gray-500">{{ p.email or '-' }}</td>
+                    {% if user.role in ['bos', 'og'] %}
                     <td class="px-4 py-3 text-center">
                         <div class="flex gap-1 justify-center">
                             <button onclick="editPelanggan({{ p.id }}, '{{ p.nama }}', '{{ p.alamat }}', '{{ p.telepon }}', '{{ p.email }}', '{{ p.catatan }}')"
                                     class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs hover:bg-yellow-200">✏️</button>
-                            <a href="/pelanggan/hapus/{{ p.id }}" onclick="return confirm('Hapus?')"
+                            <a href="/pelanggan/hapus/{{ p.id }}" onclick="return confirm('Hapus pelanggan ini?')"
                                class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">🗑️</a>
                         </div>
                     </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
@@ -50,6 +56,7 @@
     {% endif %}
 </div>
 
+{% if user.role in ['bos', 'og'] %}
 <!-- Modal Tambah -->
 <div id="modalTambah" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-md">
@@ -111,4 +118,5 @@ function editPelanggan(id, nama, alamat, telepon, email, catatan) {
     document.getElementById('modalEdit').classList.remove('hidden');
 }
 </script>
+{% endif %}
 {% endblock %}

@@ -1294,7 +1294,7 @@ def pelanggan_page(request: Request, q: str = ""):
     })
 
 @app.post("/pelanggan/tambah")
-@require_auth
+@require_bos_or_og
 def pelanggan_tambah(request: Request, nama: str = Form(...), alamat: str = Form(""),
                      telepon: str = Form(""), email: str = Form(""), catatan: str = Form("")):
     with get_db() as db:
@@ -1303,7 +1303,7 @@ def pelanggan_tambah(request: Request, nama: str = Form(...), alamat: str = Form
     return RedirectResponse("/pelanggan", status_code=303)
 
 @app.post("/pelanggan/edit/{id}")
-@require_auth
+@require_bos_or_og
 def pelanggan_edit(request: Request, id: int, nama: str = Form(...), alamat: str = Form(""),
                    telepon: str = Form(""), email: str = Form(""), catatan: str = Form("")):
     with get_db() as db:
@@ -1868,7 +1868,7 @@ def audit_log_page(request: Request, q: str = "", kategori: str = "", tgl_dari: 
 # ROUTES: EXPORT EXCEL
 # ═══════════════════════════════════════════════════════════════════════
 @app.get("/export/{tipe}")
-@require_auth
+@require_bos_or_og
 def export_excel(request: Request, tipe: str):
     wb = openpyxl.Workbook()
     hfont = Font(bold=True, color="FFFFFF")
