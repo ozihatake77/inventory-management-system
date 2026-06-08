@@ -843,7 +843,10 @@ def produk_tambah(request: Request, barcode: str = Form(""),
                   harga_modal: float = Form(0), harga_jual: float = Form(0),
                   harga_bottom: float = Form(0),
                   stok: int = Form(0), stok_minimum: int = Form(5), satuan: str = Form("pcs")):
+    user = request.state.user
     with get_db() as db:
+        if not has_permission(db, user, "hapus_data"):
+            return RedirectResponse("/produk", status_code=303)
         last = db.execute("SELECT id FROM produk ORDER BY id DESC LIMIT 1").fetchone()
         kode = f"P{str((last['id'] if last else 0) + 1).zfill(4)}"
         db.execute("""
@@ -860,7 +863,10 @@ def produk_edit(request: Request, id: int, barcode: str = Form(""),
                 harga_modal: float = Form(0), harga_jual: float = Form(0),
                 harga_bottom: float = Form(0),
                 stok_minimum: int = Form(5), satuan: str = Form("pcs")):
+    user = request.state.user
     with get_db() as db:
+        if not has_permission(db, user, "hapus_data"):
+            return RedirectResponse("/produk", status_code=303)
         old = db.execute("SELECT * FROM produk WHERE id=?", (id,)).fetchone()
         if old and (old["harga_modal"] != harga_modal or old["harga_jual"] != harga_jual):
             db.execute("""
@@ -877,7 +883,10 @@ def produk_edit(request: Request, id: int, barcode: str = Form(""),
 @app.get("/produk/hapus/{id}")
 @require_bos_or_og
 def produk_hapus(request: Request, id: int):
+    user = request.state.user
     with get_db() as db:
+        if not has_permission(db, user, "hapus_data"):
+            return RedirectResponse("/produk", status_code=303)
         old = db.execute("SELECT * FROM produk WHERE id=?", (id,)).fetchone()
         if old:
             log_audit(db, request.state.user, "Hapus Produk", "produk", f"ID {id}: {old['nama']}", request.client.host)

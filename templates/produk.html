@@ -15,10 +15,12 @@
         </select>
         <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">🔍 Filter</button>
     </form>
+    {% if has_perm(user, 'hapus_data') %}
     <button onclick="document.getElementById('modalTambah').classList.remove('hidden')"
             class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
         ➕ Tambah Produk
     </button>
+    {% endif %}
 </div>
 
 <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -34,7 +36,9 @@
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Harga Jual</th>
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Harga Bottom</th>
                     <th class="px-4 py-3 text-center font-medium text-gray-600">Stok</th>
+                    {% if has_perm(user, 'hapus_data') %}
                     <th class="px-4 py-3 text-center font-medium text-gray-600">Aksi</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -55,6 +59,7 @@
                             {{ p.stok }} {{ p.satuan }}
                         </span>
                     </td>
+                    {% if has_perm(user, 'hapus_data') %}
                     <td class="px-4 py-3 text-center">
                         <div class="flex gap-1 justify-center">
                             <button onclick="editProduk({{ p.id }}, '{{ p.nama }}', {{ p.kategori_id or 0 }}, {{ p.harga_modal }}, {{ p.harga_jual }}, {{ p.harga_bottom or 0 }}, {{ p.stok_minimum }}, '{{ p.satuan }}')"
@@ -63,6 +68,7 @@
                                class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">🗑️</a>
                         </div>
                     </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
@@ -76,6 +82,7 @@
     {% endif %}
 </div>
 
+{% if has_perm(user, 'hapus_data') %}
 <!-- Modal Tambah -->
 <div id="modalTambah" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -209,4 +216,5 @@ function editProduk(id, nama, kategori, modal, jual, bottom, min, satuan) {
     document.getElementById('modalEdit').classList.remove('hidden');
 }
 </script>
+{% endif %}
 {% endblock %}
