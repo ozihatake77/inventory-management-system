@@ -143,13 +143,14 @@
             <!-- Add Product Section -->
             <div class="bg-gray-50 rounded-lg p-4 mb-4">
                 <div class="grid grid-cols-12 gap-2 items-end">
-                    <div class="col-span-5">
+                    <div class="col-span-2">
                         <label class="block text-xs text-gray-500 mb-1">🔍 Barcode</label>
-                        <input type="text" x-model="barcodeInput" placeholder="Scan barcode..."
-                               class="w-full px-3 py-2 border rounded-lg text-sm"
-                               @keydown.enter.prevent="scanBarcode()">
+                        <button @click="startBarcodeScan()" type="button"
+                               class="w-full px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 flex items-center justify-center gap-1">
+                            📷 Scan
+                        </button>
                     </div>
-                    <div class="col-span-4">
+                    <div class="col-span-6">
                         <label class="block text-xs text-gray-500 mb-1">Produk</label>
                         <select x-model="selectedProdukId" @change="selectProduk($event.target.value)" class="w-full px-3 py-2 border rounded-lg text-sm">
                             <option value="">Pilih produk...</option>
@@ -162,8 +163,8 @@
                         <label class="block text-xs text-gray-500 mb-1">Jumlah</label>
                         <input type="number" x-model="inputJumlah" min="1" value="1" class="w-full px-3 py-2 border rounded-lg text-sm">
                     </div>
-                    <div class="col-span-1">
-                        <button @click="addToCart()" class="w-full px-3 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">➕</button>
+                    <div class="col-span-2">
+                        <button @click="addToCart()" class="w-full px-3 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">➕ Tambah</button>
                     </div>
                 </div>
                 <!-- Product Info -->
@@ -209,6 +210,8 @@
                 <div class="grid grid-cols-2 gap-2">
                     <input x-model="namaCustomer" placeholder="Nama *" class="px-3 py-2 border rounded-lg text-sm">
                     <input x-model="hpCustomer" placeholder="No HP" class="px-3 py-2 border rounded-lg text-sm">
+                    <input x-model="alamatCustomer" placeholder="Alamat" class="px-3 py-2 border rounded-lg text-sm">
+                    <input x-model="emailCustomer" placeholder="Email" type="email" class="px-3 py-2 border rounded-lg text-sm">
                 </div>
             </div>
 
@@ -228,11 +231,34 @@
                 </div>
             </div>
 
+            <!-- Diskon -->
+            <div class="mb-3">
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium text-gray-700">🏷️ Diskon</label>
+                    <div class="flex-1 relative">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">Rp</span>
+                        <input type="number" x-model.number="diskon" min="0" :max="cartTotal" placeholder="0"
+                               class="w-full pl-10 pr-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <button @click="diskon = 0" x-show="diskon > 0"
+                            class="px-2 py-2 text-xs text-red-500 hover:text-red-700">✕ Hapus</button>
+                </div>
+            </div>
+
             <!-- Total & Checkout -->
             <div class="bg-blue-50 rounded-lg p-4 mb-4">
                 <div class="flex justify-between items-center">
-                    <span class="text-sm font-medium text-gray-700">Total (<span x-text="cart.length"></span> item)</span>
-                    <span class="text-xl font-bold text-blue-600" x-text="'Rp ' + cartTotal.toLocaleString('id-ID')"></span>
+                    <span class="text-sm font-medium text-gray-700">Subtotal (<span x-text="cart.length"></span> item)</span>
+                    <span class="text-lg font-bold text-gray-600" x-text="'Rp ' + cartTotal.toLocaleString('id-ID')"></span>
+                </div>
+                <div x-show="diskon > 0" class="flex justify-between items-center mt-1">
+                    <span class="text-sm text-red-500">🏷️ Diskon</span>
+                    <span class="text-sm font-bold text-red-500" x-text="'- Rp ' + diskon.toLocaleString('id-ID')"></span>
+                </div>
+                <hr x-show="diskon > 0" class="my-2 border-blue-200">
+                <div class="flex justify-between items-center">
+                    <span class="text-sm font-bold text-gray-700">Total Bayar</span>
+                    <span class="text-xl font-bold text-blue-600" x-text="'Rp ' + finalTotal.toLocaleString('id-ID')"></span>
                 </div>
             </div>
 
@@ -299,12 +325,86 @@ function cartApp() {
         barcodeInput: '',
         namaCustomer: '-',
         hpCustomer: '',
+        alamatCustomer: '',
+        emailCustomer: '',
         metodeBayar: 'tunai',
         keterangan: '',
+        diskon: 0,
         loading: false,
         
         get cartTotal() {
             return this.cart.reduce((sum, item) => sum + (item.harga * item.jumlah), 0);
+        },
+        get finalTotal() {
+            return Math.max(0, this.cartTotal - (this.diskon || 0));
+        },
+        
+        async startBarcodeScan() {
+            // Check if BarcodeDetector API is available (Chrome, Edge, Samsung Internet)
+            if ('BarcodeDetector' in window) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'environment' }  // Use back camera
+                    });
+                    this._showScannerUI(stream);
+                } catch(e) {
+                    alert('Tidak bisa akses kamera: ' + e.message + '\nPastikan izin kamera diaktifkan.');
+                }
+            } else {
+                // Fallback: prompt manual input
+                const code = prompt('Barcode Detector tidak didukung di browser ini.\nMasukkan kode barcode secara manual:');
+                if (code) {
+                    this.barcodeInput = code;
+                    this.scanBarcode();
+                }
+            }
+        },
+        
+        _showScannerUI(stream) {
+            // Create scanner overlay
+            const overlay = document.createElement('div');
+            overlay.id = 'barcodeScannerOverlay';
+            overlay.className = 'fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center';
+            overlay.innerHTML = `
+                <div class="relative w-full max-w-md aspect-square">
+                    <video id="barcodeVideo" autoplay playsinline class="w-full h-full object-cover rounded-lg"></video>
+                    <div class="absolute inset-4 border-2 border-white/60 rounded-lg pointer-events-none"></div>
+                    <div class="absolute top-1/2 left-4 right-4 h-0.5 bg-red-500 animate-pulse"></div>
+                </div>
+                <p class="text-white text-sm mt-4">Arahkan kamera ke barcode...</p>
+                <button id="closeBarcodeScanner" class="mt-4 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">✕ Tutup</button>
+            `;
+            document.body.appendChild(overlay);
+            
+            const video = document.getElementById('barcodeVideo');
+            video.srcObject = stream;
+            
+            const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'qr_code', 'upc_a', 'upc_e'] });
+            let scanning = true;
+            
+            const scanLoop = async () => {
+                if (!scanning) return;
+                try {
+                    const barcodes = await detector.detect(video);
+                    if (barcodes.length > 0) {
+                        const code = barcodes[0].rawValue;
+                        scanning = false;
+                        stream.getTracks().forEach(t => t.stop());
+                        overlay.remove();
+                        this.barcodeInput = code;
+                        this.scanBarcode();
+                        return;
+                    }
+                } catch(e) {}
+                requestAnimationFrame(scanLoop);
+            };
+            video.addEventListener('loadeddata', () => scanLoop());
+            
+            document.getElementById('closeBarcodeScanner').addEventListener('click', () => {
+                scanning = false;
+                stream.getTracks().forEach(t => t.stop());
+                overlay.remove();
+            });
         },
         
         async scanBarcode() {
@@ -407,8 +507,11 @@ function cartApp() {
                         })),
                         metode_bayar: this.metodeBayar,
                         nama_customer: this.namaCustomer,
+                        alamat_customer: this.alamatCustomer,
                         hp_customer: this.hpCustomer,
+                        email_customer: this.emailCustomer,
                         keterangan: this.keterangan,
+                        diskon: this.diskon || 0,
                         tempo_hari: 30
                     })
                 });

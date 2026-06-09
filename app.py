@@ -296,6 +296,8 @@ def init_db():
         except: pass
         try: db.execute("ALTER TABLE penjualan ADD COLUMN batch_id TEXT DEFAULT ''")
         except: pass
+        try: db.execute("ALTER TABLE penjualan ADD COLUMN diskon REAL DEFAULT 0")
+        except: pass
         try: db.execute("ALTER TABLE stok_opname ADD COLUMN session_id INTEGER")
         except: pass
         # Init permissions for existing users who don't have any
@@ -1319,6 +1321,7 @@ async def penjualan_checkout(request: Request):
     hp_customer = data.get('hp_customer', '')
     email_customer = data.get('email_customer', '')
     keterangan = data.get('keterangan', '')
+    diskon = data.get('diskon', 0)
     tempo_hari = data.get('tempo_hari', 30)
     
     if not items:
@@ -1326,6 +1329,10 @@ async def penjualan_checkout(request: Request):
     
     batch_id = str(uuid.uuid4())[:8]
     nota_ids = []
+    
+    # Calculate subtotal for proportional discount distribution
+    subtotal = sum(item['harga'] * item['jumlah'] for item in items)
+    diskon = min(diskon, subtotal)  # Diskon can't exceed subtotal
     
     with get_db() as db:
         for item in items:
@@ -1339,17 +1346,20 @@ async def penjualan_checkout(request: Request):
             if produk['stok'] < jumlah:
                 return {"success": False, "error": f"Stok {produk['nama']} tidak cukup ({produk['stok']} tersisa)"}
             
-            total = harga * jumlah
-            keuntungan = (harga - produk['harga_modal']) * jumlah
+            item_total = harga * jumlah
+            # Distribute diskon proportionally
+            item_diskon = round(diskon * (item_total / subtotal)) if subtotal > 0 else 0
+            total = item_total - item_diskon
+            keuntungan = (harga - produk['harga_modal']) * jumlah - item_diskon
             
             db.execute("""
                 INSERT INTO penjualan (user_id, produk_id, jumlah, harga_satuan, harga_modal, total, keuntungan,
                                        keterangan, nama_customer, alamat_customer, hp_customer, email_customer,
-                                       metode_bayar, batch_id, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
+                                       metode_bayar, diskon, batch_id, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
             """, (user['id'], produk_id, jumlah, harga, produk['harga_modal'], total, keuntungan,
                   keterangan, nama_customer, alamat_customer, hp_customer, email_customer,
-                  metode_bayar, batch_id))
+                  metode_bayar, item_diskon, batch_id))
             
             pen_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
             nota_ids.append(pen_id)

@@ -85,6 +85,12 @@
     </table>
 
     <div class="total-section">
+        {% if pen.diskon and pen.diskon > 0 %}
+        <div class="total-row">
+            <span class="total-label">Diskon:</span>
+            <span class="total-value" style="color: #dc2626;">- {{ pen.diskon|rupiah }}</span>
+        </div>
+        {% endif %}
         <div class="total-row grand-total">
             <span class="total-label">Total:</span>
             <span class="total-value">{{ pen.total|rupiah }}</span>
