@@ -1371,7 +1371,7 @@ async def penjualan_checkout(request: Request):
             if metode_bayar in ['hutang', 'tempo']:
                 jatuh_tempo = (datetime.now() + timedelta(days=tempo_hari)).strftime("%Y-%m-%d")
                 db.execute("""INSERT INTO hutang (pelanggan_id, penjualan_id, jumlah, sudah_bayar, sisa, status, jatuh_tempo, keterangan)
-                              VALUES (NULL, ?, ?, 0, ?, 'belum_lunas', ?, ?)""",
+                              VALUES (NULL, ?, ?, 0, ?, 'belum', ?, ?)""",
                            (pen_id, total, total, jatuh_tempo, f"Batch {batch_id}"))
         
         # Log audit
