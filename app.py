@@ -23,9 +23,12 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 # ── Config ──────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "stok.db")
-EXPORT_DIR = os.path.join(BASE_DIR, "exports")
-BACKUP_DIR = os.path.join(BASE_DIR, "backups")
+# Use Railway persistent volume if available, else local
+DATA_DIR = os.environ.get("DATA_DIR", BASE_DIR)
+os.makedirs(DATA_DIR, exist_ok=True)
+DB_PATH = os.environ.get("DB_PATH", os.path.join(DATA_DIR, "stok.db"))
+EXPORT_DIR = os.path.join(DATA_DIR, "exports")
+BACKUP_DIR = os.path.join(DATA_DIR, "backups")
 os.makedirs(EXPORT_DIR, exist_ok=True)
 os.makedirs(BACKUP_DIR, exist_ok=True)
 
