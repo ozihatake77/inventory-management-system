@@ -1277,8 +1277,8 @@ def penjualan_tambah(request: Request, produk_id: int = Form(...), jumlah: int =
         db.execute("INSERT INTO notifikasi (tipe, pesan, link) VALUES ('penjualan', ?, ?)",
                    (f"Penjualan: {produk['nama']} x{jumlah} = Rp {total:,.0f}", f"/penjualan/nota/{penjualan_id}"))
 
-        # Create hutang if method is hutang
-        if metode_bayar == "hutang":
+        # Create hutang if method is hutang/tempo
+        if metode_bayar in ["hutang", "tempo"]:
             jatuh_tempo = (datetime.now() + timedelta(days=tempo_hari)).strftime("%Y-%m-%d")
             db.execute("""
                 INSERT INTO hutang (pelanggan_id, penjualan_id, jumlah, sudah_bayar, sisa, status, jatuh_tempo, keterangan)
@@ -1368,7 +1368,7 @@ async def penjualan_checkout(request: Request):
                        (produk_id, jumlah, harga, user['id'], f"Penjualan batch {batch_id}"))
             
             # Create hutang if needed
-            if metode_bayar == 'hutang':
+            if metode_bayar in ['hutang', 'tempo']:
                 jatuh_tempo = (datetime.now() + timedelta(days=tempo_hari)).strftime("%Y-%m-%d")
                 db.execute("""INSERT INTO hutang (pelanggan_id, penjualan_id, jumlah, sudah_bayar, sisa, status, jatuh_tempo, keterangan)
                               VALUES (NULL, ?, ?, 0, ?, 'belum_lunas', ?, ?)""",

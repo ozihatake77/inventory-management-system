@@ -103,9 +103,9 @@
                         <span class="px-2 py-1 rounded-full text-xs font-medium
                             {% if p.metode_bayar == 'tunai' %}bg-green-100 text-green-700
                             {% elif p.metode_bayar == 'transfer' %}bg-blue-100 text-blue-700
-                            {% elif p.metode_bayar == 'hutang' %}bg-orange-100 text-orange-700
+                            {% elif p.metode_bayar in ['hutang', 'tempo'] %}bg-orange-100 text-orange-700
                             {% else %}bg-gray-100 text-gray-700{% endif %}">
-                            {{ p.metode_bayar|capitalize if p.metode_bayar else 'Tunai' }}
+                            {% if p.metode_bayar in ['tempo', 'hutang'] %}Tempo{% else %}{{ p.metode_bayar|capitalize if p.metode_bayar else 'Tunai' }}{% endif %}
                         </span>
                     </td>
                     <td class="px-4 py-3 text-gray-500 text-xs">{{ p.keterangan or '-' }}</td>
@@ -230,12 +230,25 @@
                     <select x-model="metodeBayar" class="w-full px-3 py-2 border rounded-lg text-sm">
                         <option value="tunai">💵 Tunai</option>
                         <option value="transfer">🏦 Transfer</option>
-                        <option value="hutang">💳 Hutang</option>
+                        <option value="tempo">⏰ Tempo</option>
                     </select>
                 </div>
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">Keterangan</label>
                     <input x-model="keterangan" placeholder="Catatan..." class="w-full px-3 py-2 border rounded-lg text-sm">
+                </div>
+            </div>
+            <!-- Tempo Duration (only when Tempo selected) -->
+            <div x-show="metodeBayar === 'tempo'" x-transition class="mb-3">
+                <label class="block text-xs text-gray-500 mb-1">⏱️ Jatuh Tempo</label>
+                <div class="flex gap-2 flex-wrap">
+                    <template x-for="hari in [7, 14, 30, 60, 90]" :key="hari">
+                        <button type="button" @click="tempoHari = hari"
+                                class="px-3 py-1.5 rounded-lg text-xs font-medium border"
+                                :class="tempoHari === hari ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'"
+                                x-text="hari + ' hari'">
+                        </button>
+                    </template>
                 </div>
             </div>
 
@@ -322,6 +335,7 @@ function cartApp() {
         alamatCustomer: '',
         emailCustomer: '',
         metodeBayar: 'tunai',
+        tempoHari: 30,
         keterangan: '',
         loading: false,
         
@@ -532,7 +546,7 @@ function cartApp() {
                         email_customer: this.emailCustomer,
                         keterangan: this.keterangan,
                         diskon: this.totalDiskon,
-                        tempo_hari: 30
+                        tempo_hari: this.tempoHari
                     })
                 });
                 const result = await resp.json();
