@@ -1657,8 +1657,9 @@ def hutang_bayar(request: Request, hutang_id: int = Form(...), jumlah: float = F
         return RedirectResponse(f"/hutang/invoice/{pembayaran_id}?print=1", status_code=303)
     except Exception as e:
         import traceback
+        error_msg = str(e)[:100]
         print(f"ERROR hutang_bayar: {e}\n{traceback.format_exc()}")
-        return RedirectResponse("/hutang?error=1", status_code=303)
+        return RedirectResponse(f"/hutang?error={error_msg}", status_code=303)
 
 @app.get("/hutang/riwayat/{hutang_id}")
 @require_auth
