@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invoice #{{ pen.id }} - Toko Elektronik</title>
+    <title>Invoice {{ pen.no_invoice or ('#' ~ pen.id) }} - Toko Elektronik</title>
     <style>
         * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
         body { padding: 40px; color: #1f2937; font-size: 14px; line-height: 1.6; }
@@ -44,7 +44,7 @@
     <div class="invoice-info">
         <div>
             <div class="label">Invoice</div>
-            <div class="value">#INV-{{ pen.id }}</div>
+            <div class="value">{{ pen.no_invoice or ('#' ~ pen.id) }}</div>
             <div style="margin-top: 8px;">
                 <div class="label">Tanggal</div>
                 <div class="value">{{ pen.created_at|format_date }}</div>

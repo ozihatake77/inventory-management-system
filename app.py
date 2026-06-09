@@ -298,6 +298,10 @@ def init_db():
         except: pass
         try: db.execute("ALTER TABLE penjualan ADD COLUMN diskon REAL DEFAULT 0")
         except: pass
+        try: db.execute("ALTER TABLE penjualan ADD COLUMN no_invoice TEXT DEFAULT ''")
+        except: pass
+        try: db.execute("ALTER TABLE pembayaran_hutang ADD COLUMN metode_bayar TEXT DEFAULT 'tunai'")
+        except: pass
         try: db.execute("ALTER TABLE stok_opname ADD COLUMN session_id INTEGER")
         except: pass
         # Init permissions for existing users who don't have any
@@ -629,6 +633,22 @@ def log_audit(db, user, aksi, kategori, detail="", ip=""):
             "INSERT INTO audit_log (user_id, username, role, aksi, kategori, detail, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (user['id'], user['username'], user['role'], aksi, kategori, detail, ip)
         )
+
+def generate_no_invoice(db):
+    """Generate invoice number: YY/MON/INV-XXXX (e.g. 26/JUN/INV-0001)"""
+    now = datetime.now()
+    year_short = now.strftime("%y")  # 2-digit year
+    month_upper = now.strftime("%b").upper()  # JAN, FEB, MAR, etc.
+    prefix = f"{year_short}/{month_upper}/INV-"
+
+    # Count existing invoices this month
+    row = db.execute(
+        "SELECT COUNT(*) FROM penjualan WHERE no_invoice LIKE ?",
+        (f"{prefix}%",)
+    ).fetchone()
+    seq = (row[0] or 0) + 1
+
+    return f"{prefix}{seq:04d}"
 
 def add_notif(tipe, pesan, link=""):
     with get_db() as db:
@@ -1255,14 +1275,15 @@ def penjualan_tambah(request: Request, produk_id: int = Form(...), jumlah: int =
         harga = harga_jual_used if harga_jual_used > 0 else produk["harga_jual"]
         total = harga * jumlah
         keuntungan = (harga - produk["harga_modal"]) * jumlah
+        no_invoice = generate_no_invoice(db)
 
         db.execute("""
             INSERT INTO penjualan (user_id, produk_id, jumlah, harga_satuan, harga_modal, total, keuntungan,
-                                   keterangan, nama_customer, alamat_customer, hp_customer, email_customer, approval_id, metode_bayar)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   keterangan, nama_customer, alamat_customer, hp_customer, email_customer, approval_id, metode_bayar, no_invoice)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (request.state.user["id"], produk_id, jumlah, harga, produk["harga_modal"], total, keuntungan,
               keterangan, nama_customer, alamat_customer, hp_customer, email_customer,
-              approval_id if approval_id else None, metode_bayar))
+              approval_id if approval_id else None, metode_bayar, no_invoice))
 
         db.execute("UPDATE produk SET stok = stok - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (jumlah, produk_id))
 
@@ -1345,15 +1366,16 @@ async def penjualan_checkout(request: Request):
             
             total = harga * jumlah
             keuntungan = (harga - produk['harga_modal']) * jumlah
+            no_invoice = generate_no_invoice(db)
             
             db.execute("""
                 INSERT INTO penjualan (user_id, produk_id, jumlah, harga_satuan, harga_modal, total, keuntungan,
                                        keterangan, nama_customer, alamat_customer, hp_customer, email_customer,
-                                       metode_bayar, diskon, batch_id, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
+                                       metode_bayar, diskon, batch_id, status, no_invoice)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
             """, (user['id'], produk_id, jumlah, harga, produk['harga_modal'], total, keuntungan,
                   keterangan, nama_customer, alamat_customer, hp_customer, email_customer,
-                  metode_bayar, item_diskon, batch_id))
+                  metode_bayar, item_diskon, batch_id, no_invoice))
             
             pen_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
             nota_ids.append(pen_id)
@@ -1499,9 +1521,11 @@ def hutang_page(request: Request, status: str = "semua"):
 @app.post("/hutang/bayar")
 @require_auth
 def hutang_bayar(request: Request, hutang_id: int = Form(...), jumlah: float = Form(...),
-                 keterangan: str = Form("")):
+                 metode_bayar: str = Form("tunai"), keterangan: str = Form("")):
     with get_db() as db:
         hutang = db.execute("SELECT * FROM hutang WHERE id=?", (hutang_id,)).fetchone()
+        if not hutang:
+            return RedirectResponse("/hutang", status_code=303)
         sisa_baru = hutang["sisa"] - jumlah
         sudah_baru = hutang["sudah_bayar"] + jumlah
         if sisa_baru <= 0:
@@ -1514,10 +1538,34 @@ def hutang_bayar(request: Request, hutang_id: int = Form(...), jumlah: float = F
 
         db.execute("UPDATE hutang SET sudah_bayar=?, sisa=?, status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
                    (sudah_baru, sisa_baru, status, hutang_id))
-        db.execute("INSERT INTO pembayaran_hutang (hutang_id, jumlah, user_id, keterangan) VALUES (?, ?, ?, ?)",
-                   (hutang_id, jumlah, request.state.user["id"], keterangan))
+        db.execute("INSERT INTO pembayaran_hutang (hutang_id, jumlah, user_id, metode_bayar, keterangan) VALUES (?, ?, ?, ?, ?)",
+                   (hutang_id, jumlah, request.state.user["id"], metode_bayar, keterangan))
+        log_audit(db, request.state.user, "Bayar Hutang", "hutang",
+                  f"Bayar Rp {jumlah:,.0f} ({metode_bayar}) - sisa Rp {sisa_baru:,.0f}",
+                  request.client.host)
 
     return RedirectResponse("/hutang", status_code=303)
+
+@app.get("/hutang/riwayat/{hutang_id}")
+@require_auth
+def hutang_riwayat(request: Request, hutang_id: int):
+    with get_db() as db:
+        riwayat = db.execute("""
+            SELECT ph.*, u.nama as user_nama
+            FROM pembayaran_hutang ph
+            LEFT JOIN users u ON ph.user_id = u.id
+            WHERE ph.hutang_id = ?
+            ORDER BY ph.created_at DESC
+        """, (hutang_id,)).fetchall()
+        hutang = db.execute("""
+            SELECT h.*, COALESCE(p.nama, pen.nama_customer, '-') as pelanggan_nama
+            FROM hutang h
+            LEFT JOIN pelanggan p ON h.pelanggan_id = p.id
+            LEFT JOIN penjualan pen ON h.penjualan_id = pen.id
+            WHERE h.id = ?
+        """, (hutang_id,)).fetchone()
+    return {"hutang": dict(hutang) if hutang else None,
+            "riwayat": [dict(r) for r in riwayat]}
 
 # ═══════════════════════════════════════════════════════════════════════
 # ROUTES: STOK OPNAME (Full Version - Session-based)
