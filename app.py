@@ -1632,8 +1632,8 @@ def hutang_bayar(request: Request, hutang_id: int = Form(...), jumlah: float = F
             hutang = db.execute("SELECT * FROM hutang WHERE id=?", (hutang_id,)).fetchone()
             if not hutang:
                 return RedirectResponse("/hutang", status_code=303)
-            sisa_baru = hutang["sisa"] - jumlah
-            sudah_baru = hutang["sudah_bayar"] + jumlah
+            sisa_baru = float(hutang["sisa"]) - float(jumlah)
+            sudah_baru = float(hutang["sudah_bayar"]) + float(jumlah)
             if sisa_baru <= 0:
                 status = "lunas"
                 sisa_baru = 0
@@ -1654,9 +1654,11 @@ def hutang_bayar(request: Request, hutang_id: int = Form(...), jumlah: float = F
             pembayaran_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
 
         # Redirect to invoice page
-        return RedirectResponse(f"/hutang/invoice/{pembayaran_id}", status_code=303)
+        return RedirectResponse(f"/hutang/invoice/{pembayaran_id}?print=1", status_code=303)
     except Exception as e:
-        return RedirectResponse("/hutang", status_code=303)
+        import traceback
+        print(f"ERROR hutang_bayar: {e}\n{traceback.format_exc()}")
+        return RedirectResponse("/hutang?error=1", status_code=303)
 
 @app.get("/hutang/riwayat/{hutang_id}")
 @require_auth
