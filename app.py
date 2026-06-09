@@ -2417,11 +2417,21 @@ def laporan_kasir(request: Request, dari: str = "", sampai: str = "", kasir_id: 
                 ORDER BY p.created_at DESC LIMIT 20
             """, [k['id']] + params).fetchall()
 
+            total_item = db.execute(f"""
+                SELECT COALESCE(SUM(p.jumlah), 0) FROM penjualan p
+                WHERE p.user_id = ? AND {where}
+            """, [k['id']] + params).fetchone()[0]
+
+            rata_rata = (k['total_penjualan'] / k['jumlah_transaksi']) if k['jumlah_transaksi'] > 0 else 0
+
             ringkasan_kasir.append({
                 "id": k['id'], "nama": k['nama'],
                 "jumlah_transaksi": k['jumlah_transaksi'],
                 "total_penjualan": k['total_penjualan'],
                 "total_keuntungan": k['total_keuntungan'],
+                "total_item": total_item,
+                "rata_rata": rata_rata,
+                "persen": 0,  # Will calculate after
                 "detail_transaksi": [{
                     "tanggal": d['created_at'], "faktur": f"INV-{d['id']:04d}",
                     "pelanggan": d['nama_customer'], "jumlah_item": d['jumlah'],
@@ -2429,10 +2439,23 @@ def laporan_kasir(request: Request, dari: str = "", sampai: str = "", kasir_id: 
                 } for d in detail]
             })
 
+        # Calculate percentages
+        grand_total = sum(k['total_penjualan'] for k in ringkasan_kasir)
+        for k in ringkasan_kasir:
+            k['persen'] = round((k['total_penjualan'] / grand_total * 100) if grand_total > 0 else 0, 1)
+
+        # Summary totals
+        total_penjualan = grand_total
+        total_transaksi = sum(k['jumlah_transaksi'] for k in ringkasan_kasir)
+        total_item = sum(k['total_item'] for k in ringkasan_kasir)
+        rata_rata = (total_penjualan / total_transaksi) if total_transaksi > 0 else 0
+
     return templates.TemplateResponse(request, "laporan_kasir.html", {
         "request": request, "user": request.state.user,
         "daftar_kasir": daftar_kasir, "ringkasan_kasir": ringkasan_kasir,
-        "dari": dari, "sampai": sampai, "kasir_id": kasir_id
+        "dari": dari, "sampai": sampai, "kasir_id": kasir_id,
+        "total_penjualan": total_penjualan, "total_transaksi": total_transaksi,
+        "total_item": total_item, "rata_rata": rata_rata
     })
 
 @app.get("/closing", response_class=HTMLResponse)
