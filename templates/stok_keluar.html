@@ -3,44 +3,12 @@
 {% block header %}📤 Stok Keluar{% endblock %}
 
 {% block content %}
-<div class="bg-white rounded-xl shadow-sm border p-5 mb-6">
-    <h3 class="font-semibold text-gray-800 mb-4">Catat Stok Keluar</h3>
-    <form method="post" action="/stok/keluar" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Tipe</label>
-            <select name="tipe_detail" id="tipeDetailKeluar" onchange="toggleKetKeluar(this)" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                <option value="Retur ke Supplier">↩️ Retur ke Supplier</option>
-                <option value="Rusak">💥 Rusak</option>
-                <option value="Lainnya">📋 Lainnya</option>
-            </select>
-        </div>
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Produk</label>
-            <select name="produk_id" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                <option value="">Pilih produk...</option>
-                {% for p in produk %}
-                <option value="{{ p.id }}">{{ p.nama }} (stok: {{ p.stok }})</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Jumlah</label>
-            <input name="jumlah" type="number" min="1" required placeholder="0"
-                   class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-        </div>
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Keterangan</label>
-            <input name="keterangan" id="ketKeluar" placeholder="Detail tambahan..."
-                   class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-        </div>
-        <div class="flex items-end">
-            <button type="submit" class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">
-                📤 Keluarkan Stok
-            </button>
-        </div>
-    </form>
+<div class="flex justify-between items-center mb-4">
+    <p class="text-sm text-gray-500">Kelola stok keluar barang (multi-item)</p>
+    <button onclick="openKeluarModal()" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 font-medium">📤 Stok Keluar Baru</button>
 </div>
 
+<!-- Riwayat Stok Keluar -->
 <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
     <div class="p-4 border-b">
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -65,18 +33,28 @@
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Kode</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Produk</th>
                     <th class="px-4 py-3 text-center font-medium text-gray-600">Jumlah</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Harga</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Tipe</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Keterangan</th>
                     <th class="px-4 py-3 text-center font-medium text-gray-600">Invoice</th>
+                    {% if user and user.role in ['bos', 'og'] %}
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Aksi</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
                 {% for m in mutasi %}
-                <tr class="hover:bg-gray-50">
+                <tr class="hover:bg-gray-50 {% if m.status == 'voided' %}opacity-50{% endif %}">
                     <td class="px-4 py-3 text-gray-500">{{ m.created_at|format_date }}</td>
                     <td class="px-4 py-3 font-mono text-xs">{{ m.produk_kode }}</td>
-                    <td class="px-4 py-3 font-medium">{{ m.produk_nama }}</td>
+                    <td class="px-4 py-3 font-medium">
+                        {{ m.produk_nama }}
+                        {% if m.status == 'voided' %}
+                        <span class="ml-1 inline-block px-1.5 py-0.5 bg-gray-200 text-gray-600 text-xs rounded-full font-medium">VOIDED</span>
+                        {% endif %}
+                    </td>
                     <td class="px-4 py-3 text-center text-red-600 font-medium">-{{ m.jumlah }}</td>
+                    <td class="px-4 py-3 text-right">{{ m.harga_satuan|rupiah }}</td>
                     <td class="px-4 py-3">
                         {% if m.keterangan and 'Retur' in m.keterangan %}
                         <span class="inline-block px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full font-medium">↩️ Retur</span>
@@ -90,28 +68,303 @@
                     <td class="px-4 py-3 text-center">
                         <a href="/stok/invoice/{{ m.id }}" class="text-blue-600 hover:text-blue-800 text-sm" title="Lihat Invoice">🧾</a>
                     </td>
+                    {% if user and user.role in ['bos', 'og'] %}
+                    <td class="px-4 py-3 text-center">
+                        {% if m.status != 'voided' %}
+                        <button onclick="openVoidKeluarModal({{ m.id }}, '{{ m.produk_nama }}', {{ m.jumlah }})"
+                                class="px-2 py-1 bg-red-100 text-red-600 rounded text-xs hover:bg-red-200 font-medium"
+                                title="Void transaksi ini">❌ Void</button>
+                        {% else %}
+                        <span class="text-xs text-gray-400" title="{{ m.void_reason or '-' }}">Dibatalkan</span>
+                        {% endif %}
+                    </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
     {% if not mutasi %}
-    <div class="text-center py-12 text-gray-400"><p class="text-4xl mb-2">📤</p><p>Belum ada stok keluar</p></div>
+    <div class="text-center py-12 text-gray-400">
+        <p class="text-4xl mb-2">📤</p>
+        <p>Belum ada stok keluar</p>
+    </div>
     {% endif %}
 </div>
 
+<!-- Modal Multi-Item Stok Keluar -->
+<div id="modalKeluar" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="p-6" x-data="keluarApp()">
+            <h3 class="text-lg font-bold mb-4">📤 Stok Keluar Baru</h3>
+
+            <!-- Tipe Selection -->
+            <div class="mb-4">
+                <label class="block text-xs text-gray-500 mb-1">Tipe Stok Keluar</label>
+                <div class="flex gap-2">
+                    <button type="button" @click="tipeDetail = 'Retur ke Supplier'"
+                            class="flex-1 px-3 py-2 rounded-lg text-sm font-medium border-2"
+                            :class="tipeDetail === 'Retur ke Supplier' ? 'bg-orange-50 border-orange-500 text-orange-700' : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300'">
+                        ↩️ Retur ke Supplier
+                    </button>
+                    <button type="button" @click="tipeDetail = 'Rusak'"
+                            class="flex-1 px-3 py-2 rounded-lg text-sm font-medium border-2"
+                            :class="tipeDetail === 'Rusak' ? 'bg-red-50 border-red-500 text-red-700' : 'bg-white border-gray-200 text-gray-600 hover:border-red-300'">
+                        💥 Rusak
+                    </button>
+                    <button type="button" @click="tipeDetail = 'Lainnya'"
+                            class="flex-1 px-3 py-2 rounded-lg text-sm font-medium border-2"
+                            :class="tipeDetail === 'Lainnya' ? 'bg-gray-50 border-gray-500 text-gray-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'">
+                        📋 Lainnya
+                    </button>
+                </div>
+            </div>
+
+            <!-- Add Product Section -->
+            <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                <div class="grid grid-cols-12 gap-2 items-end">
+                    <div class="col-span-5">
+                        <label class="block text-xs text-gray-500 mb-1">Produk</label>
+                        <select x-model="selectedProdukId" @change="selectProduk($event.target.value)" class="w-full px-3 py-2 border rounded-lg text-sm">
+                            <option value="">Pilih produk...</option>
+                            {% for p in produk %}
+                            <option value="{{ p.id }}">{{ p.nama }} (stok: {{ p.stok }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-xs text-gray-500 mb-1">Jumlah</label>
+                        <input type="number" x-model="inputJumlah" min="1" value="1" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div class="col-span-3">
+                        <label class="block text-xs text-gray-500 mb-1">Harga Jual</label>
+                        <input type="number" x-model="inputHarga" min="0" placeholder="0" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div class="col-span-2">
+                        <button @click="addToCart()" class="w-full px-3 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">➕ Tambah</button>
+                    </div>
+                </div>
+                <!-- Product Info -->
+                <div x-show="selectedProduk" class="mt-2 text-xs text-gray-500">
+                    <span>Harga Jual: <span class="font-medium text-red-600" x-text="'Rp ' + (selectedProduk?.harga_jual || 0).toLocaleString('id-ID')"></span></span>
+                    <span class="ml-3">Stok: <span class="font-medium" x-text="selectedProduk?.stok || 0"></span></span>
+                </div>
+            </div>
+
+            <!-- Cart Items -->
+            <div x-show="cart.length > 0" class="mb-4">
+                <h4 class="text-sm font-semibold text-gray-700 mb-2">📋 Daftar Barang (<span x-text="cart.length"></span> item)</h4>
+                <div class="space-y-2 max-h-48 overflow-y-auto">
+                    <template x-for="(item, index) in cart" :key="index">
+                        <div class="flex items-center justify-between bg-white border rounded-lg p-3">
+                            <div class="flex-1">
+                                <p class="text-sm font-medium" x-text="item.nama"></p>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <input type="number" :value="item.jumlah" min="1"
+                                           @change="updateQty(index, $event.target.value)"
+                                           class="w-16 px-2 py-1 border rounded text-xs text-center">
+                                    <span class="text-xs text-gray-500">x Rp <span x-text="item.harga.toLocaleString('id-ID')"></span></span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <span class="text-sm font-bold text-red-600" x-text="'Rp ' + (item.harga * item.jumlah).toLocaleString('id-ID')"></span>
+                                <button @click="removeFromCart(index)" class="px-2 py-1 bg-red-100 text-red-600 rounded text-xs hover:bg-red-200">🗑️</button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <div x-show="cart.length === 0" class="text-center py-6 text-gray-400 mb-4">
+                <p class="text-2xl mb-1">📋</p>
+                <p class="text-sm">Daftar kosong. Pilih produk di atas.</p>
+            </div>
+
+            <!-- Keterangan -->
+            <div class="mb-4">
+                <label class="block text-xs text-gray-500 mb-1">Keterangan</label>
+                <input x-model="keterangan" placeholder="Detail tambahan..." class="w-full px-3 py-2 border rounded-lg text-sm">
+            </div>
+
+            <!-- Total -->
+            <div class="bg-red-50 rounded-lg p-4 mb-4">
+                <div class="flex justify-between items-center">
+                    <span class="text-sm font-medium text-gray-700">Total (<span x-text="cart.length"></span> item, <span x-text="totalQty"></span> pcs)</span>
+                    <span class="text-lg font-bold text-red-600" x-text="'Rp ' + cartTotal.toLocaleString('id-ID')"></span>
+                </div>
+            </div>
+
+            <div class="flex gap-2">
+                <button @click="checkout()" :disabled="cart.length === 0 || loading"
+                        class="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span x-show="!loading">📤 Simpan & Cetak Invoice</span>
+                    <span x-show="loading">⏳ Memproses...</span>
+                </button>
+                <button @click="closeKeluarModal()" class="px-4 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">Batal</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Void Stok Keluar -->
+<div id="modalVoidKeluar" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md">
+        <div class="p-6">
+            <h3 class="text-lg font-bold mb-2 text-red-600">❌ Void Stok Keluar</h3>
+            <p class="text-sm text-gray-600 mb-4">Anda akan membatalkan transaksi stok keluar berikut. Stok akan dikembalikan.</p>
+            <div class="bg-gray-50 rounded-lg p-3 mb-4 text-sm">
+                <p><strong>Produk:</strong> <span id="voidProdukNama"></span></p>
+                <p><strong>Jumlah:</strong> <span id="voidJumlah"></span> pcs</p>
+            </div>
+            <form id="voidFormKeluar" method="post" action="">
+                <div class="mb-4">
+                    <label class="block text-xs text-gray-500 mb-1">Alasan Void <span class="text-red-500">*</span></label>
+                    <input type="text" name="alasan" required placeholder="Masukkan alasan void..."
+                           class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-red-500">
+                </div>
+                <div class="flex gap-2">
+                    <button type="submit" class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm">❌ Konfirmasi Void</button>
+                    <button type="button" onclick="closeVoidKeluarModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm">Batal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
 <script>
-function toggleKetKeluar(sel) {
-    const ket = document.getElementById('ketKeluar');
-    ket.value = sel.value;
-    if (sel.value === 'Retur ke Supplier') {
-        ket.placeholder = 'Nama supplier / no. faktur';
-    } else if (sel.value === 'Rusak') {
-        ket.placeholder = 'Keterangan kerusakan';
-    } else {
-        ket.placeholder = 'Detail tambahan...';
-        ket.value = '';
-    }
+function openKeluarModal() {
+    document.getElementById('modalKeluar').classList.remove('hidden');
+}
+function closeKeluarModal() {
+    document.getElementById('modalKeluar').classList.add('hidden');
+}
+
+function openVoidKeluarModal(mutasiId, produkNama, jumlah) {
+    document.getElementById('voidProdukNama').textContent = produkNama;
+    document.getElementById('voidJumlah').textContent = jumlah;
+    document.getElementById('voidFormKeluar').action = '/stok/keluar/void/' + mutasiId;
+    document.getElementById('modalVoidKeluar').classList.remove('hidden');
+}
+function closeVoidKeluarModal() {
+    document.getElementById('modalVoidKeluar').classList.add('hidden');
+}
+
+function keluarApp() {
+    return {
+        cart: [],
+        selectedProdukId: '',
+        selectedProduk: null,
+        inputJumlah: 1,
+        inputHarga: 0,
+        tipeDetail: 'Retur ke Supplier',
+        keterangan: '',
+        loading: false,
+
+        get totalQty() {
+            return this.cart.reduce((sum, item) => sum + item.jumlah, 0);
+        },
+
+        get cartTotal() {
+            return this.cart.reduce((sum, item) => sum + (item.harga * item.jumlah), 0);
+        },
+
+        async selectProduk(id) {
+            if (!id) { this.selectedProduk = null; return; }
+            try {
+                const resp = await fetch('/api/produk/' + id);
+                this.selectedProduk = await resp.json();
+                this.inputHarga = this.selectedProduk.harga_jual || 0;
+            } catch(e) {
+                console.error(e);
+            }
+        },
+
+        addToCart() {
+            if (!this.selectedProdukId || !this.selectedProduk) {
+                alert('Pilih produk terlebih dahulu!');
+                return;
+            }
+            const jumlah = parseInt(this.inputJumlah) || 1;
+            const harga = parseInt(this.inputHarga) || 0;
+
+            // Check stock availability
+            const stokTersedia = this.selectedProduk.stok || 0;
+            const sudahDiKeranjang = this.cart.find(i => i.produkId == this.selectedProdukId);
+            const totalDiKeranjang = sudahDiKeranjang ? sudahDiKeranjang.jumlah : 0;
+
+            if (jumlah + totalDiKeranjang > stokTersedia) {
+                alert('Stok tidak cukup! Stok tersedia: ' + stokTersedia + ', sudah di keranjang: ' + totalDiKeranjang);
+                return;
+            }
+
+            // Check if already in cart
+            const existing = this.cart.findIndex(i => i.produkId == this.selectedProdukId);
+            if (existing >= 0) {
+                this.cart[existing].jumlah += jumlah;
+                this.cart[existing].harga = harga; // Update price
+            } else {
+                this.cart.push({
+                    produkId: parseInt(this.selectedProdukId),
+                    nama: this.selectedProduk.nama,
+                    harga: harga,
+                    jumlah: jumlah
+                });
+            }
+
+            // Reset
+            this.selectedProdukId = '';
+            this.selectedProduk = null;
+            this.inputJumlah = 1;
+            this.inputHarga = 0;
+        },
+
+        updateQty(index, val) {
+            const qty = parseInt(val) || 1;
+            this.cart[index].jumlah = qty;
+        },
+
+        removeFromCart(index) {
+            this.cart.splice(index, 1);
+        },
+
+        async checkout() {
+            if (this.cart.length === 0) {
+                alert('Daftar kosong!');
+                return;
+            }
+
+            this.loading = true;
+            try {
+                const ketFinal = this.tipeDetail + (this.keterangan ? ' - ' + this.keterangan : '');
+                const resp = await fetch('/stok/keluar/checkout', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        items: this.cart.map(i => ({
+                            produk_id: i.produkId,
+                            jumlah: i.jumlah,
+                            harga_satuan: i.harga
+                        })),
+                        tipe_detail: this.tipeDetail,
+                        keterangan: ketFinal
+                    })
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    window.open('/stok/invoice_batch/' + result.batch_id + '?print=1', '_blank');
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + (result.error || 'Gagal memproses'));
+                }
+            } catch(e) {
+                alert('Error: ' + e.message);
+            } finally {
+                this.loading = false;
+            }
+        }
+    };
 }
 </script>
 {% endblock %}

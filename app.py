@@ -270,6 +270,34 @@ def init_db():
             FOREIGN KEY (session_id) REFERENCES opname_session(id) ON DELETE CASCADE,
             FOREIGN KEY (produk_id) REFERENCES produk(id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS supplier (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nama TEXT NOT NULL,
+            alamat TEXT DEFAULT '',
+            telepon TEXT DEFAULT '',
+            email TEXT DEFAULT '',
+            kontak_person TEXT DEFAULT '',
+            catatan TEXT DEFAULT '',
+            aktif INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS garansi (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            penjualan_id INTEGER,
+            produk_id INTEGER NOT NULL,
+            pelanggan_id INTEGER,
+            tanggal_mulai DATE NOT NULL,
+            tanggal_akhir DATE NOT NULL,
+            status TEXT DEFAULT 'aktif' CHECK(status IN ('aktif', 'habis', 'klaim')),
+            keterangan TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (penjualan_id) REFERENCES penjualan(id) ON DELETE SET NULL,
+            FOREIGN KEY (produk_id) REFERENCES produk(id) ON DELETE CASCADE,
+            FOREIGN KEY (pelanggan_id) REFERENCES pelanggan(id) ON DELETE SET NULL
+        );
+
         """)
 
         # ── Migrations for existing DBs
@@ -304,6 +332,14 @@ def init_db():
         try: db.execute("ALTER TABLE penjualan ADD COLUMN driver TEXT DEFAULT ''")
         except: pass
         try: db.execute("ALTER TABLE stok_mutasi ADD COLUMN batch_id TEXT DEFAULT ''")
+        except: pass
+        try: db.execute("ALTER TABLE stok_mutasi ADD COLUMN status TEXT DEFAULT 'active'")
+        except: pass
+        try: db.execute("ALTER TABLE stok_mutasi ADD COLUMN void_reason TEXT DEFAULT ''")
+        except: pass
+        try: db.execute("ALTER TABLE stok_mutasi ADD COLUMN void_by INTEGER")
+        except: pass
+        try: db.execute("ALTER TABLE produk ADD COLUMN garansi_hari INTEGER DEFAULT 0")
         except: pass
         try: db.execute("ALTER TABLE pembayaran_hutang ADD COLUMN metode_bayar TEXT DEFAULT 'tunai'")
         except: pass
@@ -1237,6 +1273,110 @@ def stok_keluar(request: Request, produk_id: int = Form(...), jumlah: int = Form
     check_low_stock()
     return RedirectResponse(f"/stok/invoice/{mutasi_id}?print=1", status_code=303)
 
+@app.post("/stok/keluar/checkout")
+@require_auth
+async def stok_keluar_checkout(request: Request):
+    """Process multi-item stok keluar via JSON"""
+    import uuid
+    user = request.state.user
+    data = await request.json()
+
+    items = data.get('items', [])
+    tipe_detail = data.get('tipe_detail', 'Lainnya')
+    keterangan = data.get('keterangan', tipe_detail)
+
+    if not items:
+        return {"success": False, "error": "Daftar kosong"}
+
+    batch_id = str(uuid.uuid4())[:8]
+    mutasi_ids = []
+
+    with get_db() as db:
+        for item in items:
+            produk_id = item['produk_id']
+            jumlah = item['jumlah']
+
+            produk = db.execute("SELECT * FROM produk WHERE id = ?", (produk_id,)).fetchone()
+            if not produk:
+                continue
+            if produk['stok'] < jumlah:
+                return {"success": False, "error": f"Stok {produk['nama']} tidak cukup ({produk['stok']} tersisa)"}
+
+            # Update stock
+            db.execute("UPDATE produk SET stok = stok - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (jumlah, produk_id))
+
+            # Insert mutation
+            db.execute("""
+                INSERT INTO stok_mutasi (produk_id, tipe, jumlah, harga_satuan, user_id, keterangan, batch_id)
+                VALUES (?, 'keluar', ?, ?, ?, ?, ?)
+            """, (produk_id, jumlah, produk["harga_jual"], user['id'], keterangan, batch_id))
+
+            mutasi_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+            mutasi_ids.append(mutasi_id)
+
+        log_audit(db, user, "Stok Keluar Multi", "stok",
+                  f"Batch {batch_id}: {len(items)} item ({keterangan})",
+                  request.client.host if request.client else "")
+
+    check_low_stock()
+    return {"success": True, "batch_id": batch_id, "mutasi_ids": mutasi_ids}
+
+@app.post("/stok/masuk/void/{mutasi_id}")
+@require_auth
+def void_stok_masuk(request: Request, mutasi_id: int, alasan: str = Form(...)):
+    """Void/cancel stok masuk - reverse stock"""
+    user = request.state.user
+    if user['role'] not in ['bos', 'og']:
+        return {"success": False, "error": "Hanya Bos/OG yang bisa void"}
+
+    with get_db() as db:
+        mutasi = db.execute("SELECT * FROM stok_mutasi WHERE id = ? AND tipe = 'masuk' AND status = 'active'", (mutasi_id,)).fetchone()
+        if not mutasi:
+            return RedirectResponse("/stok/masuk?error=tidak_ditemukan", status_code=303)
+
+        # Reverse stock
+        db.execute("UPDATE produk SET stok = stok - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                   (mutasi['jumlah'], mutasi['produk_id']))
+
+        # Mark as voided
+        db.execute("UPDATE stok_mutasi SET status = 'voided', void_reason = ?, void_by = ? WHERE id = ?",
+                   (alasan, user['id'], mutasi_id))
+
+        log_audit(db, user, "Void Stok Masuk", "stok",
+                  f"Mutasi ID {mutasi_id}: -{mutasi['jumlah']} pcs, Alasan: {alasan}",
+                  request.client.host if request.client else "")
+
+    check_low_stock()
+    return RedirectResponse("/stok/masuk?voided=1", status_code=303)
+
+@app.post("/stok/keluar/void/{mutasi_id}")
+@require_auth
+def void_stok_keluar(request: Request, mutasi_id: int, alasan: str = Form(...)):
+    """Void/cancel stok keluar - restore stock"""
+    user = request.state.user
+    if user['role'] not in ['bos', 'og']:
+        return {"success": False, "error": "Hanya Bos/OG yang bisa void"}
+
+    with get_db() as db:
+        mutasi = db.execute("SELECT * FROM stok_mutasi WHERE id = ? AND tipe = 'keluar' AND status = 'active'", (mutasi_id,)).fetchone()
+        if not mutasi:
+            return RedirectResponse("/stok/keluar?error=tidak_ditemukan", status_code=303)
+
+        # Restore stock
+        db.execute("UPDATE produk SET stok = stok + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                   (mutasi['jumlah'], mutasi['produk_id']))
+
+        # Mark as voided
+        db.execute("UPDATE stok_mutasi SET status = 'voided', void_reason = ?, void_by = ? WHERE id = ?",
+                   (alasan, user['id'], mutasi_id))
+
+        log_audit(db, user, "Void Stok Keluar", "stok",
+                  f"Mutasi ID {mutasi_id}: +{mutasi['jumlah']} pcs, Alasan: {alasan}",
+                  request.client.host if request.client else "")
+
+    check_low_stock()
+    return RedirectResponse("/stok/keluar?voided=1", status_code=303)
+
 @app.get("/stok/invoice/{mutasi_id}", response_class=HTMLResponse)
 @require_auth
 def stok_invoice(request: Request, mutasi_id: int, print: int = 0):
@@ -1694,6 +1834,102 @@ def pelanggan_hapus(request: Request, id: int):
         db.execute("DELETE FROM pelanggan WHERE id=?", (id,))
     return RedirectResponse("/pelanggan", status_code=303)
 
+@app.get("/pelanggan/{id}/riwayat")
+@require_auth
+def pelanggan_riwayat(request: Request, id: int):
+    """Get customer purchase history as JSON"""
+    with get_db() as db:
+        pelanggan = db.execute("SELECT * FROM pelanggan WHERE id = ?", (id,)).fetchone()
+        if not pelanggan:
+            return {"found": False}
+
+        riwayat = db.execute("""
+            SELECT p.*, pr.nama as produk_nama, pr.kode as produk_kode,
+                   u.nama as user_nama
+            FROM penjualan p
+            JOIN produk pr ON p.produk_id = pr.id
+            LEFT JOIN users u ON p.user_id = u.id
+            WHERE p.nama_customer = ? OR p.pelanggan_id = ?
+            ORDER BY p.created_at DESC LIMIT 50
+        """, (pelanggan['nama'], id)).fetchall()
+
+        total_belanja = db.execute("""
+            SELECT COALESCE(SUM(total), 0) FROM penjualan
+            WHERE nama_customer = ? OR pelanggan_id = ?
+        """, (pelanggan['nama'], id)).fetchone()[0]
+
+        hutang_aktif = db.execute("""
+            SELECT COALESCE(SUM(sisa), 0) FROM hutang
+            WHERE pelanggan_id = ? AND status != 'lunas'
+        """, (id,)).fetchone()[0]
+
+    return {
+        "found": True,
+        "pelanggan": {"nama": pelanggan['nama'], "telepon": pelanggan['telepon'], "alamat": pelanggan['alamat']},
+        "total_belanja": total_belanja,
+        "hutang_aktif": hutang_aktif,
+        "riwayat": [{"id": r['id'], "tanggal": r['created_at'], "produk": r['produk_nama'],
+                     "jumlah": r['jumlah'], "total": r['total'], "metode": r['metode_bayar'] or 'tunai',
+                     "status": r['status']} for r in riwayat]
+    }
+
+# ═══════════════════════════════════════════════════════════════════════
+# ROUTES: SUPPLIER
+# ═══════════════════════════════════════════════════════════════════════
+@app.get("/supplier", response_class=HTMLResponse)
+@require_auth
+def supplier_page(request: Request, q: str = ""):
+    with get_db() as db:
+        query = "SELECT * FROM supplier WHERE aktif=1"
+        params = []
+        if q:
+            query += " AND (nama LIKE ? OR kontak_person LIKE ? OR telepon LIKE ?)"
+            params.extend([f"%{q}%", f"%{q}%", f"%{q}%"])
+        query += " ORDER BY nama ASC"
+        suppliers = db.execute(query, params).fetchall()
+
+        # Count products per supplier (by keterangan match)
+        supplier_stats = {}
+        for s in suppliers:
+            count = db.execute("""
+                SELECT COUNT(DISTINCT m.produk_id) FROM stok_mutasi m
+                WHERE m.keterangan LIKE ? AND m.tipe = 'masuk'
+            """, (f"%{s['nama']}%",)).fetchone()[0]
+            supplier_stats[s['id']] = count
+
+    return templates.TemplateResponse(request, "supplier.html", {
+        "request": request, "user": request.state.user,
+        "suppliers": suppliers, "supplier_stats": supplier_stats, "q": q
+    })
+
+@app.post("/supplier/tambah")
+@require_bos_or_og
+def supplier_tambah(request: Request, nama: str = Form(...), alamat: str = Form(""),
+                    telepon: str = Form(""), email: str = Form(""),
+                    kontak_person: str = Form(""), catatan: str = Form("")):
+    with get_db() as db:
+        db.execute("INSERT INTO supplier (nama, alamat, telepon, email, kontak_person, catatan) VALUES (?, ?, ?, ?, ?, ?)",
+                   (nama, alamat, telepon, email, kontak_person, catatan))
+        log_audit(db, request.state.user, "Tambah Supplier", "supplier", nama, request.client.host if request.client else "")
+    return RedirectResponse("/supplier", status_code=303)
+
+@app.post("/supplier/edit/{id}")
+@require_bos_or_og
+def supplier_edit(request: Request, id: int, nama: str = Form(...), alamat: str = Form(""),
+                  telepon: str = Form(""), email: str = Form(""),
+                  kontak_person: str = Form(""), catatan: str = Form("")):
+    with get_db() as db:
+        db.execute("UPDATE supplier SET nama=?, alamat=?, telepon=?, email=?, kontak_person=?, catatan=? WHERE id=?",
+                   (nama, alamat, telepon, email, kontak_person, catatan, id))
+    return RedirectResponse("/supplier", status_code=303)
+
+@app.get("/supplier/hapus/{id}")
+@require_bos
+def supplier_hapus(request: Request, id: int):
+    with get_db() as db:
+        db.execute("UPDATE supplier SET aktif=0 WHERE id=?", (id,))
+    return RedirectResponse("/supplier", status_code=303)
+
 # ═══════════════════════════════════════════════════════════════════════
 # ROUTES: HUTANG/PIUTANG
 # ═══════════════════════════════════════════════════════════════════════
@@ -2135,6 +2371,212 @@ def laporan_page(request: Request):
         "request": request, "user": request.state.user, "harian": harian,
         "mingguan": mingguan, "bulanan": bulanan
     })
+
+@app.get("/laporan/kasir", response_class=HTMLResponse)
+@require_bos_or_og
+def laporan_kasir(request: Request, dari: str = "", sampai: str = "", kasir_id: str = ""):
+    """Laporan penjualan per kasir"""
+    if not dari:
+        dari = datetime.now().strftime("%Y-%m-%d")
+    if not sampai:
+        sampai = datetime.now().strftime("%Y-%m-%d")
+
+    with get_db() as db:
+        # Get all kasirs for filter dropdown
+        daftar_kasir = db.execute("SELECT id, nama FROM users WHERE aktif=1 AND role IN ('karyawan','og','bos') ORDER BY nama").fetchall()
+
+        # Build query
+        where = "DATE(p.created_at) >= ? AND DATE(p.created_at) <= ? AND p.status = 'active'"
+        params = [dari, sampai]
+        if kasir_id:
+            where += " AND p.user_id = ?"
+            params.append(int(kasir_id))
+
+        # Per-cashier summary
+        ringkasan_kasir = []
+        kasir_query = db.execute(f"""
+            SELECT u.id, u.nama,
+                   COUNT(p.id) as jumlah_transaksi,
+                   COALESCE(SUM(p.total), 0) as total_penjualan,
+                   COALESCE(SUM(p.keuntungan), 0) as total_keuntungan
+            FROM users u
+            LEFT JOIN penjualan p ON p.user_id = u.id AND {where}
+            WHERE u.aktif=1 AND u.role IN ('karyawan','og','bos')
+            {'AND u.id = ?' if kasir_id else ''}
+            GROUP BY u.id HAVING jumlah_transaksi > 0
+            ORDER BY total_penjualan DESC
+        """, params + ([int(kasir_id)] if kasir_id else [])).fetchall()
+
+        for k in kasir_query:
+            # Get detail transactions per cashier
+            detail = db.execute(f"""
+                SELECT p.id, p.created_at, p.nama_customer, p.total, p.metode_bayar,
+                       pr.nama as produk_nama, p.jumlah
+                FROM penjualan p JOIN produk pr ON p.produk_id = pr.id
+                WHERE p.user_id = ? AND {where}
+                ORDER BY p.created_at DESC LIMIT 20
+            """, [k['id']] + params).fetchall()
+
+            ringkasan_kasir.append({
+                "id": k['id'], "nama": k['nama'],
+                "jumlah_transaksi": k['jumlah_transaksi'],
+                "total_penjualan": k['total_penjualan'],
+                "total_keuntungan": k['total_keuntungan'],
+                "detail_transaksi": [{
+                    "tanggal": d['created_at'], "faktur": f"INV-{d['id']:04d}",
+                    "pelanggan": d['nama_customer'], "jumlah_item": d['jumlah'],
+                    "total": d['total'], "metode_bayar": d['metode_bayar'] or 'tunai'
+                } for d in detail]
+            })
+
+    return templates.TemplateResponse(request, "laporan_kasir.html", {
+        "request": request, "user": request.state.user,
+        "daftar_kasir": daftar_kasir, "ringkasan_kasir": ringkasan_kasir,
+        "dari": dari, "sampai": sampai, "kasir_id": kasir_id
+    })
+
+@app.get("/closing", response_class=HTMLResponse)
+@require_bos_or_og
+def closing_page(request: Request, tanggal: str = ""):
+    """Closing/Kas Harian - rekonsiliasi"""
+    if not tanggal:
+        tanggal = datetime.now().strftime("%Y-%m-%d")
+
+    with get_db() as db:
+        # Summary for the day
+        summary = db.execute("""
+            SELECT
+                COUNT(*) as jumlah_transaksi,
+                COALESCE(SUM(total), 0) as total_penjualan,
+                COALESCE(SUM(keuntungan), 0) as keuntungan,
+                COALESCE(SUM(diskon), 0) as total_diskon,
+                COALESCE(SUM(harga_modal * jumlah), 0) as total_hpp
+            FROM penjualan WHERE DATE(created_at) = ? AND status = 'active'
+        """, (tanggal,)).fetchone()
+
+        total_penjualan = summary['total_penjualan'] or 0
+        jumlah_transaksi = summary['jumlah_transaksi'] or 0
+        total_hpp = summary['total_hpp'] or 0
+        total_diskon = summary['total_diskon'] or 0
+        keuntungan = summary['keuntungan'] or 0
+        rata_rata = (total_penjualan / jumlah_transaksi) if jumlah_transaksi > 0 else 0
+
+        # Payment method breakdown
+        pembayaran_metode = db.execute("""
+            SELECT metode_bayar as nama, COUNT(*) as jumlah, COALESCE(SUM(total), 0) as total
+            FROM penjualan WHERE DATE(created_at) = ? AND status = 'active'
+            GROUP BY metode_bayar ORDER BY total DESC
+        """, (tanggal,)).fetchall()
+
+        # Stok keluar (kas keluar) today - use stok keluar as "kas keluar"
+        kas_keluar = db.execute("""
+            SELECT m.keterangan, TIME(m.created_at) as jam,
+                   COALESCE(m.harga_satuan * m.jumlah, 0) as nominal
+            FROM stok_mutasi m
+            WHERE DATE(m.created_at) = ? AND m.tipe = 'keluar' AND m.status = 'active'
+            ORDER BY m.created_at DESC
+        """, (tanggal,)).fetchall()
+        total_kas_keluar = sum(k['nominal'] for k in kas_keluar)
+
+        # Detail transactions
+        transaksi = db.execute("""
+            SELECT p.no_invoice as faktur, TIME(p.created_at) as waktu,
+                   u.nama as kasir, p.nama_customer as pelanggan,
+                   p.jumlah as jumlah_item, p.total, p.metode_bayar
+            FROM penjualan p LEFT JOIN users u ON p.user_id = u.id
+            WHERE DATE(p.created_at) = ? AND p.status = 'active'
+            ORDER BY p.created_at DESC
+        """, (tanggal,)).fetchall()
+
+        keuntungan_bersih = total_penjualan - total_hpp - total_kas_keluar - total_diskon
+
+        # Check if already closed
+        sudah_closing = False  # Can be extended with a closing table later
+
+    return templates.TemplateResponse(request, "closing.html", {
+        "request": request, "user": request.state.user,
+        "tanggal": tanggal, "total_penjualan": total_penjualan,
+        "jumlah_transaksi": jumlah_transaksi, "total_hpp": total_hpp,
+        "keuntungan": keuntungan, "rata_rata": rata_rata,
+        "pembayaran_metode": pembayaran_metode,
+        "kas_keluar": kas_keluar, "total_kas_keluar": total_kas_keluar,
+        "transaksi": transaksi, "total_diskon": total_diskon,
+        "keuntungan_bersih": keuntungan_bersih, "sudah_closing": sudah_closing
+    })
+
+@app.get("/garansi", response_class=HTMLResponse)
+@require_auth
+def garansi_page(request: Request, q: str = "", status: str = ""):
+    """Garansi tracking page"""
+    with get_db() as db:
+        query = """
+            SELECT g.*, p.nama as produk_nama, p.kode as produk_kode,
+                   pl.nama as pelanggan_nama, pl.telepon as pelanggan_telp
+            FROM garansi g
+            JOIN produk p ON g.produk_id = p.id
+            LEFT JOIN pelanggan pl ON g.pelanggan_id = pl.id
+            WHERE 1=1
+        """
+        params = []
+        if q:
+            query += " AND (p.nama LIKE ? OR pl.nama LIKE ? OR p.kode LIKE ?)"
+            params.extend([f"%{q}%", f"%{q}%", f"%{q}%"])
+        if status:
+            query += " AND g.status = ?"
+            params.append(status)
+        query += " ORDER BY g.tanggal_akhir ASC LIMIT 100"
+        garansis = db.execute(query, params).fetchall()
+
+        # Stats
+        aktif = db.execute("SELECT COUNT(*) FROM garansi WHERE status='aktif'").fetchone()[0]
+        habis = db.execute("SELECT COUNT(*) FROM garansi WHERE status='habis'").fetchone()[0]
+        klaim = db.execute("SELECT COUNT(*) FROM garansi WHERE status='klaim'").fetchone()[0]
+
+        # Auto-expire garansis
+        db.execute("UPDATE garansi SET status='habis' WHERE status='aktif' AND tanggal_akhir < DATE('now')")
+
+        # Products with garansi_hari > 0 for adding new garansi
+        produk_garansi = db.execute("SELECT id, kode, nama, garansi_hari FROM produk WHERE garansi_hari > 0 ORDER BY nama").fetchall()
+        pelanggan_list = db.execute("SELECT id, nama FROM pelanggan ORDER BY nama").fetchall()
+        penjualan_list = db.execute("""
+            SELECT p.id, p.created_at, pr.nama as produk_nama, p.nama_customer
+            FROM penjualan p JOIN produk pr ON p.produk_id = pr.id
+            WHERE p.status = 'active' ORDER BY p.created_at DESC LIMIT 100
+        """).fetchall()
+
+    return templates.TemplateResponse(request, "garansi.html", {
+        "request": request, "user": request.state.user,
+        "garansi": garansis, "q": q, "status_filter": status,
+        "aktif": aktif, "habis": habis, "klaim": klaim,
+        "produk_list": produk_garansi, "pelanggan_list": pelanggan_list,
+        "penjualan_list": penjualan_list
+    })
+
+@app.post("/garansi/tambah")
+@require_bos_or_og
+def garansi_tambah(request: Request, produk_id: int = Form(...), pelanggan_id: int = Form(0),
+                   penjualan_id: int = Form(0), tanggal_mulai: str = Form(...),
+                   hari: int = Form(0), keterangan: str = Form("")):
+    with get_db() as db:
+        produk = db.execute("SELECT garansi_hari FROM produk WHERE id = ?", (produk_id,)).fetchone()
+        garansi_hari = hari if hari > 0 else (produk['garansi_hari'] if produk else 30)
+        tgl_akhir = (datetime.strptime(tanggal_mulai, "%Y-%m-%d") + timedelta(days=garansi_hari)).strftime("%Y-%m-%d")
+
+        db.execute("""
+            INSERT INTO garansi (penjualan_id, produk_id, pelanggan_id, tanggal_mulai, tanggal_akhir, keterangan)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (penjualan_id if penjualan_id else None, produk_id, pelanggan_id if pelanggan_id else None,
+              tanggal_mulai, tgl_akhir, keterangan))
+        log_audit(db, request.state.user, "Tambah Garansi", "garansi",
+                  f"Produk ID {produk_id} - {garansi_hari} hari", request.client.host if request.client else "")
+    return RedirectResponse("/garansi", status_code=303)
+
+@app.post("/garansi/klaim/{id}")
+@require_bos_or_og
+def garansi_klaim(request: Request, id: int, keterangan: str = Form("")):
+    with get_db() as db:
+        db.execute("UPDATE garansi SET status='klaim', keterangan=? WHERE id=?", (keterangan, id))
+    return RedirectResponse("/garansi", status_code=303)
 
 # ═══════════════════════════════════════════════════════════════════════
 # ROUTES: KATEGORI

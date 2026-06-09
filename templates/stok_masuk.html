@@ -41,7 +41,7 @@
             </thead>
             <tbody class="divide-y divide-gray-100">
                 {% for m in mutasi %}
-                <tr class="hover:bg-gray-50">
+                <tr class="hover:bg-gray-50 {% if m.status == 'voided' %}bg-red-50 opacity-50{% endif %}">
                     <td class="px-4 py-3 text-gray-500">{{ m.created_at|format_date }}</td>
                     <td class="px-4 py-3 font-mono text-xs">{{ m.produk_kode }}</td>
                     <td class="px-4 py-3 font-medium">{{ m.produk_nama }}</td>
@@ -56,7 +56,18 @@
                     </td>
                     <td class="px-4 py-3 text-gray-500">{{ m.keterangan or '-' }}</td>
                     <td class="px-4 py-3 text-center">
-                        <a href="/stok/invoice/{{ m.id }}" class="text-blue-600 hover:text-blue-800 text-sm" title="Lihat Invoice">🧾</a>
+                        <div class="flex gap-1 justify-center items-center">
+                            <a href="/stok/invoice/{{ m.id }}" class="text-blue-600 hover:text-blue-800 text-sm" title="Lihat Invoice">🧾</a>
+                            {% if m.status != 'voided' and user.role in ['bos', 'og'] %}
+                            <form method="post" action="/stok/masuk/void/{{ m.id }}" onsubmit="return confirm('Void stok masuk ini? Stok akan dikurangi.')" style="display:inline">
+                                <input type="hidden" name="alasan" value="Pembatalan manual">
+                                <button type="submit" class="text-red-500 hover:text-red-700 text-sm" title="Void">❌</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                        {% if m.status == 'voided' %}
+                        <p class="text-xs text-red-500">VOIDED</p>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}

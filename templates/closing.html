@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}Closing Harian{% endblock %}
+{% block header %}🔒 Closing / Rekonsiliasi Harian{% endblock %}
+
+{% block content %}
+<!-- Date Filter -->
+<div class="bg-white rounded-xl shadow-sm border p-4 mb-4">
+    <form method="get" class="flex flex-col sm:flex-row gap-3 items-end">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
+            <input type="date" name="tanggal" value="{{ tanggal }}" class="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+        </div>
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">🔍 Tampilkan</button>
+        {% if user.role in ['bos', 'og'] %}
+        <a href="/closing/cetak?tanggal={{ tanggal }}" target="_blank" class="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm hover:bg-gray-700">🖨️ Cetak</a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Summary Cards -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">Total Penjualan</p>
+        <p class="text-2xl font-bold text-blue-600">{{ total_penjualan|rupiah }}</p>
+        <p class="text-xs text-gray-400 mt-1">{{ jumlah_transaksi }} transaksi</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">Total Modal (HPP)</p>
+        <p class="text-2xl font-bold text-orange-600">{{ total_hpp|rupiah }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">Keuntungan Bersih</p>
+        <p class="text-2xl font-bold text-green-600">{{ keuntungan|rupiah }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">Rata-rata per Transaksi</p>
+        <p class="text-2xl font-bold text-purple-600">{{ rata_rata|rupiah }}</p>
+    </div>
+</div>
+
+<!-- Payment Breakdown -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+    <!-- Metode Pembayaran -->
+    <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div class="p-4 border-b">
+            <h3 class="font-semibold text-gray-800">💳 Rincian Metode Pembayaran</h3>
+        </div>
+        <div class="p-4">
+            {% for metode in pembayaran_metode %}
+            <div class="flex justify-between items-center py-2 {% if not loop.last %}border-b border-gray-100{% endif %}">
+                <span class="text-sm text-gray-600">{{ metode.nama }}</span>
+                <div class="text-right">
+                    <span class="font-semibold text-gray-800">{{ metode.total|rupiah }}</span>
+                    <span class="text-xs text-gray-400 ml-2">({{ metode.jumlah }} trx)</span>
+                </div>
+            </div>
+            {% endfor %}
+            {% if not pembayaran_metode %}
+            <p class="text-center text-gray-400 py-4">Tidak ada data</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Kas Keluar Hari Ini -->
+    <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div class="p-4 border-b">
+            <h3 class="font-semibold text-gray-800">📤 Kas Keluar Hari Ini</h3>
+        </div>
+        <div class="p-4">
+            {% for k in kas_keluar %}
+            <div class="flex justify-between items-center py-2 {% if not loop.last %}border-b border-gray-100{% endif %}">
+                <div>
+                    <p class="text-sm font-medium text-gray-800">{{ k.keterangan }}</p>
+                    <p class="text-xs text-gray-400">{{ k.jam }}</p>
+                </div>
+                <span class="font-semibold text-red-600">-{{ k.nominal|rupiah }}</span>
+            </div>
+            {% endfor %}
+            {% if not kas_keluar %}
+            <p class="text-center text-gray-400 py-4">Tidak ada kas keluar hari ini</p>
+            {% endif %}
+            {% if kas_keluar %}
+            <div class="flex justify-between items-center pt-3 mt-2 border-t">
+                <span class="font-medium text-gray-700">Total Kas Keluar</span>
+                <span class="font-bold text-red-600">-{{ total_kas_keluar|rupiah }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Detail Transaksi -->
+<div class="bg-white rounded-xl shadow-sm border overflow-hidden mb-4">
+    <div class="p-4 border-b flex justify-between items-center">
+        <h3 class="font-semibold text-gray-800">🧾 Detail Transaksi Hari Ini</h3>
+        <span class="text-sm text-gray-500">{{ tanggal }}</span>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">No. Faktur</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Waktu</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Kasir</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Pelanggan</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Item</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Total</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Bayar</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for t in transaksi %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 font-medium text-blue-600">{{ t.faktur }}</td>
+                    <td class="px-4 py-3 text-gray-500">{{ t.waktu }}</td>
+                    <td class="px-4 py-3">{{ t.kasir }}</td>
+                    <td class="px-4 py-3">{{ t.pelanggan or 'Umum' }}</td>
+                    <td class="px-4 py-3 text-center">{{ t.jumlah_item }}</td>
+                    <td class="px-4 py-3 text-right font-semibold">{{ t.total|rupiah }}</td>
+                    <td class="px-4 py-3">{{ t.metode_bayar }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot class="bg-gray-50 border-t">
+                <tr>
+                    <td colspan="5" class="px-4 py-3 font-semibold text-right">Total Hari Ini:</td>
+                    <td class="px-4 py-3 text-right font-bold text-blue-600">{{ total_penjualan|rupiah }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {% if not transaksi %}
+    <div class="text-center py-12 text-gray-400"><p class="text-4xl mb-2">🧾</p><p>Tidak ada transaksi pada tanggal ini</p></div>
+    {% endif %}
+</div>
+
+<!-- Ringkasan Rekonsiliasi -->
+{% if user.role in ['bos', 'og'] %}
+<div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+    <div class="p-4 border-b">
+        <h3 class="font-semibold text-gray-800">📋 Ringkasan Rekonsiliasi</h3>
+    </div>
+    <div class="p-4">
+        <div class="max-w-md space-y-2">
+            <div class="flex justify-between py-1.5 border-b border-gray-100">
+                <span class="text-gray-600">Total Penjualan Kotor</span>
+                <span class="font-medium">{{ total_penjualan|rupiah }}</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b border-gray-100">
+                <span class="text-gray-600">(-) Total HPP / Modal Barang</span>
+                <span class="font-medium text-orange-600">-{{ total_hpp|rupiah }}</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b border-gray-100">
+                <span class="text-gray-600">(-) Kas Keluar / Biaya Operasional</span>
+                <span class="font-medium text-red-600">-{{ total_kas_keluar|rupiah }}</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b border-gray-100">
+                <span class="text-gray-600">(-) Diskon / Potongan</span>
+                <span class="font-medium text-red-600">-{{ total_diskon|rupiah }}</span>
+            </div>
+            <div class="flex justify-between py-2 bg-green-50 rounded-lg px-3 mt-2">
+                <span class="font-bold text-green-800">= Keuntungan Bersih</span>
+                <span class="font-bold text-green-700 text-lg">{{ keuntungan_bersih|rupiah }}</span>
+            </div>
+        </div>
+        {% if not sudah_closing %}
+        <div class="mt-4">
+            <form method="post" action="/closing/proses">
+                <input type="hidden" name="tanggal" value="{{ tanggal }}">
+                <button type="submit" onclick="return confirm('Proses closing untuk tanggal {{ tanggal }}? Pastikan semua transaksi sudah benar.')"
+                        class="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+                    🔒 Proses Closing Hari Ini
+                </button>
+            </form>
+        </div>
+        {% else %}
+        <div class="mt-4 px-4 py-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+            <span class="text-green-600 text-lg">✅</span>
+            <span class="text-green-800 font-medium">Closing tanggal {{ tanggal }} sudah diproses</span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

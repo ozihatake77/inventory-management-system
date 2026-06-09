@@ -1,18 +1,34 @@
 {% extends "base.html" %}
-{% block title %}Pelanggan{% endblock %}
-{% block header %}👥 Data Pelanggan{% endblock %}
+{% block title %}Supplier{% endblock %}
+{% block header %}🚚 Data Supplier{% endblock %}
 
 {% block content %}
 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
     <form method="get" class="flex gap-2">
-        <input type="text" name="q" value="{{ q }}" placeholder="Cari pelanggan..."
+        <input type="text" name="q" value="{{ q }}" placeholder="Cari supplier..."
                class="px-3 py-2 border rounded-lg text-sm w-48 focus:ring-2 focus:ring-blue-500">
         <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">🔍</button>
     </form>
     {% if user.role in ['bos', 'og'] %}
     <button onclick="document.getElementById('modalTambah').classList.remove('hidden')"
-            class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">➕ Tambah Pelanggan</button>
+            class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">➕ Tambah Supplier</button>
     {% endif %}
+</div>
+
+<!-- Summary Cards -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">Total Supplier</p>
+        <p class="text-2xl font-bold text-gray-800">{{ suppliers|length }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">Supplier Aktif</p>
+        <p class="text-2xl font-bold text-green-600">{{ suppliers|selectattr('aktif')|list|length }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">Supplier Nonaktif</p>
+        <p class="text-2xl font-bold text-red-600">{{ suppliers|rejectattr('aktif')|list|length }}</p>
+    </div>
 </div>
 
 <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -20,33 +36,38 @@
         <table class="w-full text-sm">
             <thead class="bg-gray-50 border-b">
                 <tr>
-                    <th class="px-4 py-3 text-left font-medium text-gray-600">Nama</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Nama Supplier</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Kontak Person</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Telepon</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Alamat</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Email</th>
-                    <th class="px-4 py-3 text-center font-medium text-gray-600">Riwayat</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Status</th>
                     {% if user.role in ['bos', 'og'] %}
                     <th class="px-4 py-3 text-center font-medium text-gray-600">Aksi</th>
                     {% endif %}
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
-                {% for p in pelanggan %}
+                {% for s in suppliers %}
                 <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-3 font-medium">{{ p.nama }}</td>
-                    <td class="px-4 py-3">{{ p.telepon or '-' }}</td>
-                    <td class="px-4 py-3 text-gray-500">{{ p.alamat or '-' }}</td>
-                    <td class="px-4 py-3 text-gray-500">{{ p.email or '-' }}</td>
+                    <td class="px-4 py-3 font-medium">{{ s.nama }}</td>
+                    <td class="px-4 py-3">{{ s.kontak_person or '-' }}</td>
+                    <td class="px-4 py-3">{{ s.telepon or '-' }}</td>
+                    <td class="px-4 py-3 text-gray-500">{{ s.alamat or '-' }}</td>
+                    <td class="px-4 py-3 text-gray-500">{{ s.email or '-' }}</td>
                     <td class="px-4 py-3 text-center">
-                        <button onclick="showRiwayat({{ p.id }}, '{{ p.nama }}')"
-                                class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200">📋 Riwayat</button>
+                        {% if s.aktif %}
+                        <span class="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">Aktif</span>
+                        {% else %}
+                        <span class="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">Nonaktif</span>
+                        {% endif %}
                     </td>
                     {% if user.role in ['bos', 'og'] %}
                     <td class="px-4 py-3 text-center">
                         <div class="flex gap-1 justify-center">
-                            <button onclick="editPelanggan({{ p.id }}, '{{ p.nama }}', '{{ p.alamat }}', '{{ p.telepon }}', '{{ p.email }}', '{{ p.catatan }}')"
+                            <button onclick="editSupplier({{ s.id }}, '{{ s.nama }}', '{{ s.kontak_person or '' }}', '{{ s.telepon or '' }}', '{{ s.alamat or '' }}', '{{ s.email or '' }}', '{{ s.catatan or '' }}', {{ 'true' if s.aktif else 'false' }})"
                                     class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs hover:bg-yellow-200">✏️</button>
-                            <a href="/pelanggan/hapus/{{ p.id }}" onclick="return confirm('Hapus pelanggan ini?')"
+                            <a href="/supplier/hapus/{{ s.id }}" onclick="return confirm('Hapus supplier ini?')"
                                class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">🗑️</a>
                         </div>
                     </td>
@@ -56,8 +77,8 @@
             </tbody>
         </table>
     </div>
-    {% if not pelanggan %}
-    <div class="text-center py-12 text-gray-400"><p class="text-4xl mb-2">👥</p><p>Belum ada pelanggan</p></div>
+    {% if not suppliers %}
+    <div class="text-center py-12 text-gray-400"><p class="text-4xl mb-2">🚚</p><p>Belum ada data supplier</p></div>
     {% endif %}
 </div>
 
@@ -66,10 +87,12 @@
 <div id="modalTambah" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-md">
         <div class="p-6">
-            <h3 class="text-lg font-bold mb-4">➕ Tambah Pelanggan</h3>
-            <form method="post" action="/pelanggan/tambah" class="space-y-3">
-                <div><label class="block text-sm font-medium text-gray-700 mb-1">Nama</label>
+            <h3 class="text-lg font-bold mb-4">➕ Tambah Supplier</h3>
+            <form method="post" action="/supplier/tambah" class="space-y-3">
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Nama Supplier *</label>
                     <input name="nama" required class="w-full px-3 py-2 border rounded-lg text-sm"></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Kontak Person</label>
+                    <input name="kontak_person" class="w-full px-3 py-2 border rounded-lg text-sm"></div>
                 <div><label class="block text-sm font-medium text-gray-700 mb-1">Telepon</label>
                     <input name="telepon" class="w-full px-3 py-2 border rounded-lg text-sm"></div>
                 <div><label class="block text-sm font-medium text-gray-700 mb-1">Alamat</label>
@@ -91,10 +114,12 @@
 <div id="modalEdit" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-md">
         <div class="p-6">
-            <h3 class="text-lg font-bold mb-4">✏️ Edit Pelanggan</h3>
+            <h3 class="text-lg font-bold mb-4">✏️ Edit Supplier</h3>
             <form id="formEdit" method="post" class="space-y-3">
-                <div><label class="block text-sm font-medium text-gray-700 mb-1">Nama</label>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Nama Supplier *</label>
                     <input name="nama" id="edit_nama" required class="w-full px-3 py-2 border rounded-lg text-sm"></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Kontak Person</label>
+                    <input name="kontak_person" id="edit_kontak" class="w-full px-3 py-2 border rounded-lg text-sm"></div>
                 <div><label class="block text-sm font-medium text-gray-700 mb-1">Telepon</label>
                     <input name="telepon" id="edit_telepon" class="w-full px-3 py-2 border rounded-lg text-sm"></div>
                 <div><label class="block text-sm font-medium text-gray-700 mb-1">Alamat</label>
@@ -103,6 +128,11 @@
                     <input name="email" id="edit_email" type="email" class="w-full px-3 py-2 border rounded-lg text-sm"></div>
                 <div><label class="block text-sm font-medium text-gray-700 mb-1">Catatan</label>
                     <input name="catatan" id="edit_catatan" class="w-full px-3 py-2 border rounded-lg text-sm"></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <select name="aktif" id="edit_aktif" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        <option value="true">Aktif</option>
+                        <option value="false">Nonaktif</option>
+                    </select></div>
                 <div class="flex gap-2 pt-2">
                     <button type="submit" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">💾 Update</button>
                     <button type="button" onclick="document.getElementById('modalEdit').classList.add('hidden')" class="px-4 py-2 bg-gray-200 rounded-lg">Batal</button>
@@ -112,84 +142,17 @@
     </div>
 </div>
 
-<!-- Modal Riwayat -->
-<div id="modalRiwayat" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
-        <div class="p-6">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-bold">📋 Riwayat Pembelian - <span id="riwayatNama"></span></h3>
-                <button onclick="document.getElementById('modalRiwayat').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
-            </div>
-            <div id="riwayatContent">
-                <div class="text-center py-8 text-gray-400">
-                    <div class="animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mb-2"></div>
-                    <p>Memuat riwayat...</p>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
-function editPelanggan(id, nama, alamat, telepon, email, catatan) {
-    document.getElementById('formEdit').action = '/pelanggan/edit/' + id;
+function editSupplier(id, nama, kontak, telepon, alamat, email, catatan, aktif) {
+    document.getElementById('formEdit').action = '/supplier/edit/' + id;
     document.getElementById('edit_nama').value = nama;
-    document.getElementById('edit_alamat').value = alamat;
+    document.getElementById('edit_kontak').value = kontak;
     document.getElementById('edit_telepon').value = telepon;
+    document.getElementById('edit_alamat').value = alamat;
     document.getElementById('edit_email').value = email;
     document.getElementById('edit_catatan').value = catatan;
+    document.getElementById('edit_aktif').value = aktif ? 'true' : 'false';
     document.getElementById('modalEdit').classList.remove('hidden');
-}
-
-function showRiwayat(id, nama) {
-    document.getElementById('riwayatNama').textContent = nama;
-    document.getElementById('riwayatContent').innerHTML = `
-        <div class="text-center py-8 text-gray-400">
-            <div class="animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mb-2"></div>
-            <p>Memuat riwayat...</p>
-        </div>`;
-    document.getElementById('modalRiwayat').classList.remove('hidden');
-
-    fetch(`/pelanggan/${id}/riwayat`)
-        .then(res => {
-            if (!res.ok) throw new Error('Gagal memuat data');
-            return res.json();
-        })
-        .then(data => {
-            if (!data || data.length === 0) {
-                document.getElementById('riwayatContent').innerHTML = `
-                    <div class="text-center py-8 text-gray-400">
-                        <p class="text-3xl mb-2">📭</p>
-                        <p>Belum ada riwayat pembelian</p>
-                    </div>`;
-                return;
-            }
-            let html = `<div class="space-y-3">`;
-            data.forEach(item => {
-                html += `
-                    <div class="bg-gray-50 rounded-lg p-3 border">
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <p class="font-medium text-gray-800">${item.produk_nama || item.nama_produk || item.nama || '-'}</p>
-                                <p class="text-xs text-gray-500">${item.tanggal || item.tanggal_transaksi || '-'}</p>
-                            </div>
-                            <div class="text-right">
-                                <p class="font-semibold text-green-600">Rp ${Number(item.total || item.jumlah || 0).toLocaleString('id-ID')}</p>
-                                <p class="text-xs text-gray-500">${item.jumlah_item || item.qty || ''} item</p>
-                            </div>
-                        </div>
-                    </div>`;
-            });
-            html += `</div>`;
-            document.getElementById('riwayatContent').innerHTML = html;
-        })
-        .catch(err => {
-            document.getElementById('riwayatContent').innerHTML = `
-                <div class="text-center py-8 text-red-400">
-                    <p class="text-3xl mb-2">⚠️</p>
-                    <p>Gagal memuat riwayat. Silakan coba lagi.</p>
-                </div>`;
-        });
 }
 </script>
 {% endif %}
