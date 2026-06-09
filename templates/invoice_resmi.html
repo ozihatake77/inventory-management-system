@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice Resmi {{ pen.no_invoice or ('#' ~ pen.id) }} - {{ settings.nama_toko or 'Toko Elektronik' }}</title>
+    <style>
+        @page { size: A4; margin: 15mm 20mm; }
+        * { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+        body { padding: 20px 30px; color: #1a1a1a; font-size: 12px; line-height: 1.5; background: #fff; }
+        @media print {
+            body { padding: 0; }
+            .no-print { display: none !important; }
+        }
+
+        /* Invoice Header */
+        .invoice-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; border-bottom: 3px solid #1e40af; padding-bottom: 16px; }
+        .store-info h1 { font-size: 22px; font-weight: 800; color: #1e40af; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+        .store-info p { font-size: 11px; color: #555; margin-bottom: 2px; }
+        .store-info .npwp { font-size: 11px; color: #333; font-weight: 600; margin-top: 4px; }
+        .invoice-badge { text-align: right; }
+        .invoice-badge .badge-title { display: inline-block; background: #1e40af; color: #fff; padding: 8px 24px; font-size: 16px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; border-radius: 4px; margin-bottom: 8px; }
+        .invoice-meta { font-size: 11px; }
+        .invoice-meta .row { display: flex; justify-content: flex-end; gap: 6px; margin-bottom: 3px; }
+        .invoice-meta .label { color: #666; min-width: 80px; text-align: right; }
+        .invoice-meta .value { font-weight: 600; min-width: 160px; text-align: left; }
+
+        /* Bill To / Ship To */
+        .info-grid { display: flex; justify-content: space-between; margin-bottom: 20px; gap: 20px; }
+        .info-box { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px 16px; }
+        .info-box h3 { font-size: 10px; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-bottom: 8px; font-weight: 700; }
+        .info-box .row { display: flex; margin-bottom: 3px; font-size: 11px; }
+        .info-box .label { color: #64748b; min-width: 80px; }
+        .info-box .value { font-weight: 600; color: #1e293b; }
+
+        /* Items Table */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        thead { background: #1e40af; }
+        th { padding: 10px 12px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #fff; letter-spacing: 0.5px; border: none; }
+        td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 11px; }
+        tbody tr:nth-child(even) { background: #f8fafc; }
+        tbody tr:hover { background: #eef2ff; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        td.no-cell { text-align: center; width: 30px; color: #94a3b8; }
+        td.kode { font-family: 'Courier New', monospace; font-size: 10px; color: #64748b; }
+
+        /* Summary */
+        .summary-container { display: flex; justify-content: space-between; gap: 30px; margin-top: 10px; }
+        .notes-section { flex: 1; font-size: 10px; color: #64748b; }
+        .notes-section h4 { font-size: 11px; color: #1e293b; margin-bottom: 6px; font-weight: 700; }
+        .notes-section p { margin-bottom: 4px; line-height: 1.6; }
+        .totals-section { min-width: 280px; }
+        .total-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 11px; border-bottom: 1px solid #f1f5f9; }
+        .total-row .t-label { color: #64748b; }
+        .total-row .t-value { font-weight: 600; }
+        .total-row.grand { font-size: 16px; font-weight: 800; color: #1e40af; border-top: 2px solid #1e40af; border-bottom: none; padding-top: 10px; margin-top: 6px; }
+
+        /* Terms */
+        .terms-section { margin-top: 20px; padding: 12px 16px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; font-size: 10px; color: #92400e; }
+        .terms-section h4 { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; color: #78350f; }
+        .terms-section p { margin-bottom: 2px; white-space: pre-line; }
+
+        /* Footer */
+        .invoice-footer { margin-top: 30px; display: flex; justify-content: space-between; }
+        .footer-col { text-align: center; min-width: 140px; }
+        .footer-col .sig-space { height: 60px; }
+        .footer-col .sig-line { border-top: 1px solid #1e293b; padding-top: 6px; font-size: 10px; font-weight: 600; color: #334155; }
+        .footer-col .sig-date { font-size: 9px; color: #94a3b8; margin-top: 2px; }
+
+        /* Watermark */
+        .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); font-size: 80px; font-weight: 900; color: rgba(30, 64, 175, 0.03); pointer-events: none; z-index: -1; letter-spacing: 10px; text-transform: uppercase; }
+
+        /* Stamp area */
+        .stamp-area { position: absolute; bottom: 100px; right: 40px; width: 100px; height: 100px; border: 2px dashed #cbd5e1; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; color: #94a3b8; text-transform: uppercase; }
+
+        /* Print Button */
+        .print-btn { position: fixed; bottom: 20px; right: 20px; padding: 14px 28px; background: #1e40af; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(30,64,175,0.3); transition: all 0.2s; }
+        .print-btn:hover { background: #1d4ed8; transform: translateY(-1px); }
+    </style>
+</head>
+<body>
+    <div class="watermark">LUNAS</div>
+
+    <!-- Invoice Header -->
+    <div class="invoice-header">
+        <div class="store-info">
+            <h1>{{ settings.nama_toko or 'Toko Elektronik Rumah Tangga' }}</h1>
+            {% if settings.alamat_toko %}<p>📍 {{ settings.alamat_toko }}{% if settings.kota_toko %}, {{ settings.kota_toko }}{% endif %}</p>{% endif %}
+            {% if settings.telepon_toko %}<p>📞 {{ settings.telepon_toko }}</p>{% endif %}
+            {% if settings.email_toko %}<p>✉️ {{ settings.email_toko }}</p>{% endif %}
+            {% if settings.npwp %}<p class="npwp">NPWP: {{ settings.npwp }}</p>{% endif %}
+        </div>
+        <div class="invoice-badge">
+            <div class="badge-title">Faktur Penjualan</div>
+            <div class="invoice-meta">
+                <div class="row"><span class="label">No. Invoice</span><span class="value">: {{ pen.no_invoice or ('INV-' ~ pen.id) }}</span></div>
+                <div class="row"><span class="label">Tanggal</span><span class="value">: {{ pen.created_at|format_date }}</span></div>
+                <div class="row"><span class="label">Jatuh Tempo</span><span class="value">: -</span></div>
+                <div class="row"><span class="label">Kasir</span><span class="value">: {{ pen.user_nama or '-' }}</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer & Payment Info -->
+    <div class="info-grid">
+        <div class="info-box">
+            <h3>Ditagihkan Kepada</h3>
+            <div class="row"><span class="label">Nama</span><span class="value">: {{ pen.nama_customer or 'Umum' }}</span></div>
+            {% if pen.alamat_customer %}<div class="row"><span class="label">Alamat</span><span class="value">: {{ pen.alamat_customer }}</span></div>{% endif %}
+            {% if pen.hp_customer %}<div class="row"><span class="label">Telp/HP</span><span class="value">: {{ pen.hp_customer }}</span></div>{% endif %}
+        </div>
+        <div class="info-box">
+            <h3>Informasi Pembayaran</h3>
+            <div class="row"><span class="label">Metode</span><span class="value">: {{ pen.metode_bayar|capitalize if pen.metode_bayar else 'Tunai' }}</span></div>
+            <div class="row"><span class="label">Status</span><span class="value">: {% if pen.metode_bayar == 'hutang' %}Belum Lunas{% else %}Lunas{% endif %}</span></div>
+            {% if pen.driver %}<div class="row"><span class="label">Pengirim</span><span class="value">: {{ pen.driver }}</span></div>{% endif %}
+        </div>
+    </div>
+
+    <!-- Items Table -->
+    <table>
+        <thead>
+            <tr>
+                <th class="text-center" style="width:30px">NO</th>
+                <th style="width:80px">KODE</th>
+                <th>NAMA BARANG</th>
+                <th class="text-center" style="width:50px">QTY</th>
+                <th class="text-center" style="width:40px">SAT</th>
+                <th class="text-right" style="width:100px">HARGA</th>
+                <th class="text-center" style="width:50px">DISC</th>
+                <th class="text-right" style="width:110px">SUBTOTAL</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td class="no-cell">{{ loop.index }}</td>
+                <td class="kode">{{ item.produk_kode }}</td>
+                <td>{{ item.produk_nama }}</td>
+                <td class="text-center">{{ item.jumlah }}</td>
+                <td class="text-center">PCS</td>
+                <td class="text-right">{{ item.harga_satuan|rupiah }}</td>
+                <td class="text-center">{{ (item.diskon or 0)|string + '%' if item.diskon else '-' }}</td>
+                <td class="text-right">{{ item.total|rupiah }}</td>
+            </tr>
+            {% endfor %}
+            <!-- Empty rows for spacing -->
+            {% for i in range(items|length, 8) %}
+            <tr>
+                <td class="no-cell" style="color:#e2e8f0">{{ i + 1 }}</td>
+                <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Summary & Notes -->
+    <div class="summary-container">
+        <div class="notes-section">
+            <h4>Catatan</h4>
+            {% if pen.keterangan %}
+            <p>{{ pen.keterangan }}</p>
+            {% endif %}
+            <p style="margin-top:8px; color:#94a3b8; font-size:9px;">{{ settings.footer_nota or 'Barang yang sudah dibeli tidak dapat dikembalikan.' }}</p>
+        </div>
+        <div class="totals-section">
+            <div class="total-row">
+                <span class="t-label">Subtotal</span>
+                <span class="t-value">{{ subtotal|rupiah }}</span>
+            </div>
+            {% if total_diskon > 0 %}
+            <div class="total-row">
+                <span class="t-label">Diskon</span>
+                <span class="t-value" style="color:#dc2626">- {{ total_diskon|rupiah }}</span>
+            </div>
+            {% endif %}
+            <div class="total-row grand">
+                <span class="t-label">TOTAL</span>
+                <span class="t-value">{{ grand_total|rupiah }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Terms & Conditions -->
+    {% if settings.syarat_pembayaran %}
+    <div class="terms-section">
+        <h4>Syarat & Ketentuan</h4>
+        <p>{{ settings.syarat_pembayaran }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Signature Footer -->
+    <div class="invoice-footer">
+        <div class="footer-col">
+            <div class="sig-space"></div>
+            <div class="sig-line">Pengirim</div>
+            <div class="sig-date">( _______________ )</div>
+        </div>
+        <div class="footer-col">
+            <div class="sig-space"></div>
+            <div class="sig-line">Penerima</div>
+            <div class="sig-date">( _______________ )</div>
+        </div>
+        <div class="footer-col">
+            <div class="sig-space"></div>
+            <div class="sig-line">Hormat Kami</div>
+            <div class="sig-date">( _______________ )</div>
+        </div>
+    </div>
+
+    <!-- Stamp area -->
+    <div class="stamp-area">STAMP<br>AREA</div>
+
+    <button class="print-btn no-print" onclick="window.print()">🖨️ Cetak Invoice Resmi</button>
+
+    {% if auto_print %}
+    <script>window.onload = function() { window.print(); };</script>
+    {% endif %}
+</body>
+</html>

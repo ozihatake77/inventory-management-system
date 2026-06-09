@@ -397,6 +397,13 @@ def init_db():
              FOREIGN KEY (produk_id) REFERENCES produk(id) ON DELETE CASCADE
              );
 
+             CREATE TABLE IF NOT EXISTS pengaturan (
+             id INTEGER PRIMARY KEY AUTOINCREMENT,
+             key TEXT NOT NULL UNIQUE,
+             value TEXT DEFAULT '',
+             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+             );
+
              """)
 
         # ── Migrations for existing DBs
@@ -595,6 +602,21 @@ def init_db():
                 date = (today - timedelta(days=days_ago)).strftime("%Y-%m-%d %H:%M:%S")
                 db.execute("INSERT INTO stok_mutasi (produk_id, tipe, jumlah, keterangan, user_id, created_at) VALUES (?, 'keluar', ?, ?, ?, ?)",
                            (prod_id, qty, ket, user_id, date))
+
+        # Seed default store settings
+        settings_defaults = [
+            ('nama_toko', 'Toko Elektronik Rumah Tangga'),
+            ('alamat_toko', ''),
+            ('telepon_toko', ''),
+            ('email_toko', ''),
+            ('npwp', ''),
+            ('kota_toko', ''),
+            ('logo_url', ''),
+            ('footer_nota', 'Barang yang sudah dibeli tidak dapat dikembalikan. Terima kasih atas kunjungan Anda.'),
+            ('syarat_pembayaran', 'Pembayaran: Tunai / Transfer\nTempo: Sesuai perjanjian\nRetur: Maks 7 hari dengan nota asli'),
+        ]
+        for key, val in settings_defaults:
+            db.execute("INSERT OR IGNORE INTO pengaturan (key, value) VALUES (?, ?)", (key, val))
 
 init_db()
 
@@ -809,7 +831,15 @@ def check_low_stock():
             if not existing:
                 add_notif("stok_habis", f"Stok {p['nama']} HABIS!", "/produk")
 
-# ── Backup Helper ───────────────────────────────────────────────────────
+def get_setting(db, key, default=''):
+    row = db.execute("SELECT value FROM pengaturan WHERE key=?", (key,)).fetchone()
+    return row['value'] if row and row['value'] else default
+
+def get_all_settings(db):
+    rows = db.execute("SELECT key, value FROM pengaturan").fetchall()
+    return {r['key']: r['value'] for r in rows}
+
+# ── Backup Helper
 def auto_backup():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"stok_backup_{timestamp}.db"
@@ -952,6 +982,12 @@ def dashboard(request: Request):
             ORDER BY h.jatuh_tempo ASC LIMIT 5
         """).fetchall()
 
+        # Finance summary for dashboard
+        kas_masuk_hari = db.execute("SELECT COALESCE(SUM(jumlah), 0) FROM kas_transaksi WHERE tipe='masuk' AND tanggal = ?", (today,)).fetchone()[0]
+        kas_keluar_hari = db.execute("SELECT COALESCE(SUM(jumlah), 0) FROM kas_transaksi WHERE tipe='keluar' AND tanggal = ?", (today,)).fetchone()[0]
+        saldo_kas = db.execute("SELECT COALESCE(SUM(CASE WHEN tipe='masuk' THEN jumlah ELSE -jumlah END), 0) FROM kas_transaksi WHERE metode='kas'").fetchone()[0]
+        saldo_bank = db.execute("SELECT COALESCE(SUM(CASE WHEN tipe='masuk' THEN jumlah ELSE -jumlah END), 0) FROM kas_transaksi WHERE metode='bank'").fetchone()[0]
+
     return templates.TemplateResponse(request, "dashboard.html", {
         "user": user, "total_produk": total_produk, "total_stok": total_stok,
         "stok_menipis": stok_menipis, "penjualan_hari_ini": penjualan_hari_ini,
@@ -961,6 +997,8 @@ def dashboard(request: Request):
         "top_produk": top_produk, "notif_count": notif_count, "notif_list": notif_list,
         "hutang_jatuh": hutang_jatuh,
         "bayar_hari_ini": bayar_hari_ini, "bayar_minggu_ini": bayar_minggu_ini,
+        "kas_masuk_hari": kas_masuk_hari, "kas_keluar_hari": kas_keluar_hari,
+        "saldo_kas": saldo_kas, "saldo_bank": saldo_bank,
     })
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -3278,6 +3316,66 @@ def po_batal(request: Request, id: int, alasan: str = Form("")):
         db.execute("UPDATE purchase_order SET status='dibatalkan', keterangan=?, updated_at=CURRENT_TIMESTAMP WHERE id=?", (alasan, id))
         log_audit(db, user, "PO Dibatalkan", "purchase", f"PO #{id}: {alasan}", request.client.host if request.client else "")
     return RedirectResponse(f"/po/detail/{id}", status_code=303)
+
+# ═══════════════════════════════════════════════════════════════════════
+# ROUTES: INVOICE RESMI
+# ═══════════════════════════════════════════════════════════════════════
+@app.get("/invoice/resmi/{id}", response_class=HTMLResponse)
+@require_auth
+def invoice_resmi(request: Request, id: int):
+    """Generate proper business invoice for a sale"""
+    with get_db() as db:
+        pen = db.execute("""SELECT pen.*, pr.nama as produk_nama, pr.kode as produk_kode,
+                          u.nama as user_nama
+                          FROM penjualan pen JOIN produk pr ON pen.produk_id = pr.id
+                          LEFT JOIN users u ON pen.user_id = u.id
+                          WHERE pen.id = ?""", (id,)).fetchone()
+        if not pen:
+            return RedirectResponse("/penjualan", status_code=303)
+        
+        # Get all items in batch
+        items = []
+        if pen['batch_id']:
+            items = db.execute("""SELECT pen2.*, pr.nama as produk_nama, pr.kode as produk_kode
+                                 FROM penjualan pen2 JOIN produk pr ON pen2.produk_id = pr.id
+                                 WHERE pen2.batch_id = ? AND pen2.status = 'active'
+                                 ORDER BY pen2.id""", (pen['batch_id'],)).fetchall()
+        else:
+            items = [pen]
+        
+        settings = get_all_settings(db)
+        subtotal = sum(i['harga_satuan'] * i['jumlah'] for i in items if i)
+        total_diskon = sum(i['diskon'] or 0 for i in items if i)
+        grand_total = sum(i['total'] for i in items if i)
+    
+    return templates.TemplateResponse(request, "invoice_resmi.html", {
+        "request": request, "user": request.state.user,
+        "pen": pen, "items": items, "settings": settings,
+        "subtotal": subtotal, "total_diskon": total_diskon, "grand_total": grand_total,
+    })
+
+# ═══════════════════════════════════════════════════════════════════════
+# ROUTES: PENGATURAN (Settings)
+# ═══════════════════════════════════════════════════════════════════════
+@app.get("/pengaturan", response_class=HTMLResponse)
+@require_bos
+def pengaturan_page(request: Request):
+    with get_db() as db:
+        settings = get_all_settings(db)
+    return templates.TemplateResponse(request, "pengaturan.html", {
+        "request": request, "user": request.state.user, "settings": settings
+    })
+
+@app.post("/pengaturan/simpan")
+@require_bos
+async def pengaturan_simpan(request: Request):
+    form = await request.form()
+    with get_db() as db:
+        for key in ['nama_toko', 'alamat_toko', 'telepon_toko', 'email_toko', 'npwp', 'kota_toko', 'footer_nota', 'syarat_pembayaran']:
+            val = form.get(key, '')
+            db.execute("INSERT OR REPLACE INTO pengaturan (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)", (key, val))
+        log_audit(db, request.state.user, "Update Pengaturan", "sistem", "Pengaturan toko diupdate", request.client.host if request.client else "")
+    return RedirectResponse("/pengaturan", status_code=303)
 
 # ═══════════════════════════════════════════════════════════════════════
 # ROUTES: KATEGORI

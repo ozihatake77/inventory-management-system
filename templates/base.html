@@ -184,6 +184,9 @@
         <a href="/backup" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/backup' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>💾</span> Backup Data
         </a>
+        <a href="/pengaturan" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/pengaturan' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>⚙️</span> Pengaturan
+        </a>
         {% endif %}
 
         {% if user and user.role in ['bos', 'og'] %}

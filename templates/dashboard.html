@@ -96,6 +96,48 @@
     </div>
 </div>
 
+<!-- Finance Summary -->
+{% if has_perm(user, 'finance') %}
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-xl">📥</div>
+            <div>
+                <p class="text-xs text-gray-500">Kas Masuk Hari Ini</p>
+                <p class="text-lg font-bold text-green-600">{{ kas_masuk_hari|rupiah }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center text-xl">📤</div>
+            <div>
+                <p class="text-xs text-gray-500">Kas Keluar Hari Ini</p>
+                <p class="text-lg font-bold text-red-600">{{ kas_keluar_hari|rupiah }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center text-xl">💵</div>
+            <div>
+                <p class="text-xs text-gray-500">Saldo Kas</p>
+                <p class="text-lg font-bold text-emerald-700">{{ saldo_kas|rupiah }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center text-xl">🏦</div>
+            <div>
+                <p class="text-xs text-gray-500">Saldo Bank</p>
+                <p class="text-lg font-bold text-indigo-700">{{ saldo_bank|rupiah }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Charts Row -->
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
 
