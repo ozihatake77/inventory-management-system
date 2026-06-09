@@ -325,6 +325,46 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
         );
+         CREATE TABLE IF NOT EXISTS brand (
+             id INTEGER PRIMARY KEY AUTOINCREMENT,
+             nama TEXT NOT NULL UNIQUE,
+             logo TEXT DEFAULT '',
+             aktif INTEGER DEFAULT 1,
+             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+         );
+
+         CREATE TABLE IF NOT EXISTS serial_number (
+             id INTEGER PRIMARY KEY AUTOINCREMENT,
+             produk_id INTEGER NOT NULL,
+             serial TEXT NOT NULL UNIQUE,
+             status TEXT DEFAULT 'tersedia' CHECK(status IN ('tersedia', 'terjual', 'retur', 'rusak')),
+             penjualan_id INTEGER,
+             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+             FOREIGN KEY (produk_id) REFERENCES produk(id) ON DELETE CASCADE,
+             FOREIGN KEY (penjualan_id) REFERENCES penjualan(id) ON DELETE SET NULL
+         );
+
+         CREATE TABLE IF NOT EXISTS retur_penjualan (
+             id INTEGER PRIMARY KEY AUTOINCREMENT,
+             penjualan_id INTEGER,
+             pelanggan_id INTEGER,
+             produk_id INTEGER NOT NULL,
+             serial_number_id INTEGER,
+             jumlah INTEGER NOT NULL DEFAULT 1,
+             alasan TEXT NOT NULL,
+             tipe_retur TEXT DEFAULT 'ganti' CHECK(tipe_retur IN ('ganti', 'refund')),
+             status TEXT DEFAULT 'proses' CHECK(status IN ('proses', 'selesai', 'ditolak')),
+             jumlah_refund REAL DEFAULT 0,
+             user_id INTEGER,
+             keterangan TEXT DEFAULT '',
+             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+             FOREIGN KEY (penjualan_id) REFERENCES penjualan(id) ON DELETE SET NULL,
+             FOREIGN KEY (pelanggan_id) REFERENCES pelanggan(id) ON DELETE SET NULL,
+             FOREIGN KEY (produk_id) REFERENCES produk(id) ON DELETE CASCADE,
+             FOREIGN KEY (serial_number_id) REFERENCES serial_number(id) ON DELETE SET NULL,
+             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+         );
 
         """)
 
@@ -368,6 +408,8 @@ def init_db():
         try: db.execute("ALTER TABLE stok_mutasi ADD COLUMN void_by INTEGER")
         except: pass
         try: db.execute("ALTER TABLE produk ADD COLUMN garansi_hari INTEGER DEFAULT 0")
+        except: pass
+        try: db.execute("ALTER TABLE produk ADD COLUMN brand_id INTEGER REFERENCES brand(id) ON DELETE SET NULL")
         except: pass
         try: db.execute("ALTER TABLE pembayaran_hutang ADD COLUMN metode_bayar TEXT DEFAULT 'tunai'")
         except: pass
@@ -636,7 +678,7 @@ ALL_FEATURES = [
     "stok_lihat", "stok_masuk", "stok_keluar", "stok_opname",
     "supplier", "laporan", "laporan_kasir", "closing", "garansi",
     "lihat_keuntungan", "audit_log", "hapus_data",
-    "finance",
+    "finance", "brand", "serial_number", "retur_penjualan",
 ]
 
 ROLE_DEFAULTS = {
@@ -647,7 +689,7 @@ ROLE_DEFAULTS = {
             "stok_lihat": True, "stok_masuk": False, "stok_keluar": False, "stok_opname": False,
             "supplier": False, "laporan": False, "laporan_kasir": False, "closing": False, "garansi": False,
             "lihat_keuntungan": False, "audit_log": False, "hapus_data": False,
-            "finance": False,
+            "finance": False, "brand": False, "serial_number": False, "retur_penjualan": False,
         },
 }
 
@@ -905,7 +947,7 @@ def notifikasi_baca(request: Request):
 @require_auth
 def produk_list(request: Request, q: str = "", kategori: int = 0, sort: str = "az"):
     with get_db() as db:
-        query = "SELECT p.*, k.nama as kategori_nama FROM produk p LEFT JOIN kategori k ON p.kategori_id = k.id WHERE 1=1"
+        query = "SELECT p.*, k.nama as kategori_nama, b.nama as brand_nama FROM produk p LEFT JOIN kategori k ON p.kategori_id = k.id LEFT JOIN brand b ON p.brand_id = b.id WHERE 1=1"
         params = []
         if q:
             query += " AND (p.nama LIKE ? OR p.barcode LIKE ?)"
@@ -925,9 +967,10 @@ def produk_list(request: Request, q: str = "", kategori: int = 0, sort: str = "a
         query += f" ORDER BY {order}"
         produk = db.execute(query, params).fetchall()
         kategori_list = db.execute("SELECT * FROM kategori ORDER BY nama").fetchall()
+        brand_list = db.execute("SELECT * FROM brand WHERE aktif=1 ORDER BY nama").fetchall()
     return templates.TemplateResponse(request, "produk.html", {
         "request": request, "user": request.state.user, "produk": produk,
-        "kategori_list": kategori_list, "q": q, "kategori": kategori, "sort": sort
+        "kategori_list": kategori_list, "brand_list": brand_list, "q": q, "kategori": kategori, "sort": sort
     })
 
 @app.get("/api/produk/barcode/{barcode}")
@@ -957,7 +1000,7 @@ def api_produk_detail(request: Request, id: int):
 @app.post("/produk/tambah")
 @require_auth
 def produk_tambah(request: Request, barcode: str = Form(""),
-                  nama: str = Form(...), kategori_id: int = Form(0),
+                  nama: str = Form(...), kategori_id: int = Form(0), brand_id: int = Form(0),
                   harga_modal: float = Form(0), harga_jual: float = Form(0),
                   harga_bottom: float = Form(0),
                   stok: int = Form(0), stok_minimum: int = Form(5), satuan: str = Form("pcs")):
@@ -968,16 +1011,16 @@ def produk_tambah(request: Request, barcode: str = Form(""),
         last = db.execute("SELECT id FROM produk ORDER BY id DESC LIMIT 1").fetchone()
         kode = f"P{str((last['id'] if last else 0) + 1).zfill(4)}"
         db.execute("""
-            INSERT INTO produk (kode, barcode, nama, kategori_id, harga_modal, harga_jual, harga_bottom, stok, stok_minimum, satuan)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (kode, barcode, nama, kategori_id if kategori_id else None, harga_modal, harga_jual, harga_bottom, stok, stok_minimum, satuan))
+            INSERT INTO produk (kode, barcode, nama, kategori_id, brand_id, harga_modal, harga_jual, harga_bottom, stok, stok_minimum, satuan)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (kode, barcode, nama, kategori_id if kategori_id else None, brand_id if brand_id else None, harga_modal, harga_jual, harga_bottom, stok, stok_minimum, satuan))
         log_audit(db, request.state.user, "Tambah Produk", "produk", f"{nama} - Harga: Rp {harga_jual:,.0f}", request.client.host)
     return RedirectResponse("/produk", status_code=303)
 
 @app.post("/produk/edit/{id}")
 @require_auth
 def produk_edit(request: Request, id: int, barcode: str = Form(""),
-                nama: str = Form(...), kategori_id: int = Form(0),
+                nama: str = Form(...), kategori_id: int = Form(0), brand_id: int = Form(0),
                 harga_modal: float = Form(0), harga_jual: float = Form(0),
                 harga_bottom: float = Form(0),
                 stok_minimum: int = Form(5), satuan: str = Form("pcs")):
@@ -992,9 +1035,9 @@ def produk_edit(request: Request, id: int, barcode: str = Form(""),
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (id, old["harga_modal"], old["harga_jual"], harga_modal, harga_jual, request.state.user["id"]))
         db.execute("""
-            UPDATE produk SET barcode=?, nama=?, kategori_id=?, harga_modal=?, harga_jual=?,
+            UPDATE produk SET barcode=?, nama=?, kategori_id=?, brand_id=?, harga_modal=?, harga_jual=?,
             harga_bottom=?, stok_minimum=?, satuan=?, updated_at=CURRENT_TIMESTAMP WHERE id=?
-        """, (barcode, nama, kategori_id if kategori_id else None, harga_modal, harga_jual, harga_bottom, stok_minimum, satuan, id))
+        """, (barcode, nama, kategori_id if kategori_id else None, brand_id if brand_id else None, harga_modal, harga_jual, harga_bottom, stok_minimum, satuan, id))
         log_audit(db, request.state.user, "Edit Produk", "produk", f"ID {id}: {nama}", request.client.host)
     return RedirectResponse("/produk", status_code=303)
 
@@ -2796,6 +2839,233 @@ def api_finance_saldo(request: Request):
         "bank": bank_masuk - bank_keluar,
         "total": (kas_masuk - kas_keluar) + (bank_masuk - bank_keluar)
     })
+
+# ═══════════════════════════════════════════════════════════════════════
+# ROUTES: BRAND
+# ═══════════════════════════════════════════════════════════════════════
+@app.get("/brand", response_class=HTMLResponse)
+@require_auth
+def brand_page(request: Request, q: str = ""):
+    with get_db() as db:
+        query = "SELECT b.*, COUNT(p.id) as jumlah_produk FROM brand b LEFT JOIN produk p ON p.brand_id = b.id"
+        params = []
+        if q:
+            query += " WHERE b.nama LIKE ?"
+            params.append(f"%{q}%")
+        query += " GROUP BY b.id ORDER BY b.nama"
+        brands = db.execute(query, params).fetchall()
+    return templates.TemplateResponse(request, "brand.html", {
+        "request": request, "user": request.state.user, "brands": brands, "q": q
+    })
+
+@app.post("/brand/tambah")
+@require_auth
+def brand_tambah(request: Request, nama: str = Form(...)):
+    user = request.state.user
+    with get_db() as db:
+        if not has_permission(db, user, "brand"):
+            return RedirectResponse("/brand", status_code=303)
+        db.execute("INSERT OR IGNORE INTO brand (nama) VALUES (?)", (nama,))
+        log_audit(db, user, "Tambah Brand", "master", nama, request.client.host if request.client else "")
+    return RedirectResponse("/brand", status_code=303)
+
+@app.post("/brand/edit/{id}")
+@require_auth
+def brand_edit(request: Request, id: int, nama: str = Form(...)):
+    user = request.state.user
+    with get_db() as db:
+        if not has_permission(db, user, "brand"):
+            return RedirectResponse("/brand", status_code=303)
+        db.execute("UPDATE brand SET nama=? WHERE id=?", (nama, id))
+    return RedirectResponse("/brand", status_code=303)
+
+@app.get("/brand/hapus/{id}")
+@require_auth
+def brand_hapus(request: Request, id: int):
+    user = request.state.user
+    with get_db() as db:
+        if not has_permission(db, user, "brand"):
+            return RedirectResponse("/brand", status_code=303)
+        db.execute("DELETE FROM brand WHERE id=?", (id,))
+    return RedirectResponse("/brand", status_code=303)
+
+# ═══════════════════════════════════════════════════════════════════════
+# ROUTES: SERIAL NUMBER
+# ═══════════════════════════════════════════════════════════════════════
+@app.get("/serial", response_class=HTMLResponse)
+@require_auth
+def serial_page(request: Request, q: str = "", status: str = "", produk_id: int = 0):
+    with get_db() as db:
+        query = """SELECT s.*, p.nama as produk_nama, p.kode as produk_kode
+                   FROM serial_number s JOIN produk p ON s.produk_id = p.id WHERE 1=1"""
+        params = []
+        if q:
+            query += " AND (s.serial LIKE ? OR p.nama LIKE ?)"
+            params.extend([f"%{q}%", f"%{q}%"])
+        if status:
+            query += " AND s.status = ?"
+            params.append(status)
+        if produk_id:
+            query += " AND s.produk_id = ?"
+            params.append(produk_id)
+        query += " ORDER BY s.created_at DESC LIMIT 200"
+        serials = db.execute(query, params).fetchall()
+
+        produk_list = db.execute("SELECT id, kode, nama FROM produk ORDER BY nama").fetchall()
+        stats = {
+            "tersedia": db.execute("SELECT COUNT(*) FROM serial_number WHERE status='tersedia'").fetchone()[0],
+            "terjual": db.execute("SELECT COUNT(*) FROM serial_number WHERE status='terjual'").fetchone()[0],
+            "retur": db.execute("SELECT COUNT(*) FROM serial_number WHERE status='retur'").fetchone()[0],
+            "rusak": db.execute("SELECT COUNT(*) FROM serial_number WHERE status='rusak'").fetchone()[0],
+        }
+    return templates.TemplateResponse(request, "serial.html", {
+        "request": request, "user": request.state.user, "serials": serials,
+        "produk_list": produk_list, "q": q, "status_filter": status, "stats": stats
+    })
+
+@app.post("/serial/tambah")
+@require_auth
+def serial_tambah(request: Request, produk_id: int = Form(...), serial: str = Form(...)):
+    user = request.state.user
+    with get_db() as db:
+        db.execute("INSERT OR IGNORE INTO serial_number (produk_id, serial) VALUES (?, ?)", (produk_id, serial.upper().strip()))
+        log_audit(db, user, "Tambah Serial Number", "master", f"Produk ID {produk_id}: {serial}", request.client.host if request.client else "")
+    return RedirectResponse("/serial", status_code=303)
+
+@app.post("/serial/tambah-batch")
+@require_auth
+async def serial_tambah_batch(request: Request):
+    """Add multiple serial numbers at once (paste from clipboard)"""
+    data = await request.json()
+    produk_id = data.get("produk_id")
+    serials_text = data.get("serials", "")
+    user = request.state.user
+    
+    added = 0
+    with get_db() as db:
+        for line in serials_text.strip().split("\n"):
+            sn = line.strip().upper()
+            if sn:
+                try:
+                    db.execute("INSERT INTO serial_number (produk_id, serial) VALUES (?, ?)", (produk_id, sn))
+                    added += 1
+                except:
+                    pass  # Skip duplicates
+        log_audit(db, user, "Tambah Serial Batch", "master", f"Produk ID {produk_id}: {added} SN", request.client.host if request.client else "")
+    return {"success": True, "added": added}
+
+@app.get("/api/serial/check/{serial}")
+@require_auth
+def api_serial_check(request: Request, serial: str):
+    """Check serial number availability"""
+    with get_db() as db:
+        sn = db.execute("""SELECT s.*, p.nama as produk_nama, p.kode as produk_kode
+                           FROM serial_number s JOIN produk p ON s.produk_id = p.id
+                           WHERE s.serial = ?""", (serial.upper(),)).fetchone()
+    if sn:
+        return {"found": True, "status": sn["status"], "produk": sn["produk_nama"], "produk_id": sn["produk_id"], "id": sn["id"]}
+    return {"found": False}
+
+# ═══════════════════════════════════════════════════════════════════════
+# ROUTES: RETUR PENJUALAN
+# ═══════════════════════════════════════════════════════════════════════
+@app.get("/retur", response_class=HTMLResponse)
+@require_auth
+def retur_page(request: Request, status: str = ""):
+    with get_db() as db:
+        query = """SELECT r.*, p.nama as produk_nama, p.kode as produk_kode,
+                   pl.nama as pelanggan_nama, u.nama as user_nama,
+                   sn.serial as serial_text
+                   FROM retur_penjualan r
+                   JOIN produk p ON r.produk_id = p.id
+                   LEFT JOIN pelanggan pl ON r.pelanggan_id = pl.id
+                   LEFT JOIN users u ON r.user_id = u.id
+                   LEFT JOIN serial_number sn ON r.serial_number_id = sn.id
+                   WHERE 1=1"""
+        params = []
+        if status:
+            query += " AND r.status = ?"
+            params.append(status)
+        query += " ORDER BY r.created_at DESC LIMIT 100"
+        returs = db.execute(query, params).fetchall()
+
+        stats = {
+            "proses": db.execute("SELECT COUNT(*) FROM retur_penjualan WHERE status='proses'").fetchone()[0],
+            "selesai": db.execute("SELECT COUNT(*) FROM retur_penjualan WHERE status='selesai'").fetchone()[0],
+            "ditolak": db.execute("SELECT COUNT(*) FROM retur_penjualan WHERE status='ditolak'").fetchone()[0],
+        }
+
+        produk_list = db.execute("SELECT id, kode, nama FROM produk ORDER BY nama").fetchall()
+        pelanggan_list = db.execute("SELECT id, nama FROM pelanggan ORDER BY nama").fetchall()
+        penjualan_list = db.execute("""
+            SELECT p.id, p.created_at, pr.nama as produk_nama, p.nama_customer, p.total
+            FROM penjualan p JOIN produk pr ON p.produk_id = pr.id
+            WHERE p.status = 'active' ORDER BY p.created_at DESC LIMIT 100
+        """).fetchall()
+
+    return templates.TemplateResponse(request, "retur.html", {
+        "request": request, "user": request.state.user, "returs": returs,
+        "stats": stats, "status_filter": status,
+        "produk_list": produk_list, "pelanggan_list": pelanggan_list, "penjualan_list": penjualan_list
+    })
+
+@app.post("/retur/tambah")
+@require_auth
+def retur_tambah(request: Request, penjualan_id: int = Form(0), pelanggan_id: int = Form(0),
+                 produk_id: int = Form(...), jumlah: int = Form(1), alasan: str = Form(...),
+                 tipe_retur: str = Form("ganti"), serial_text: str = Form(""), keterangan: str = Form("")):
+    user = request.state.user
+    with get_db() as db:
+        serial_number_id = None
+        refund_amount = 0
+
+        # If serial number provided, find and validate it
+        if serial_text:
+            sn = db.execute("SELECT * FROM serial_number WHERE serial = ?", (serial_text.upper().strip(),)).fetchone()
+            if sn:
+                serial_number_id = sn["id"]
+                # Mark serial as retur
+                db.execute("UPDATE serial_number SET status='retur', updated_at=CURRENT_TIMESTAMP WHERE id=?", (sn["id"],))
+
+        # If refund type, calculate refund amount from penjualan
+        if tipe_retur == "refund" and penjualan_id:
+            pen = db.execute("SELECT * FROM penjualan WHERE id=? AND status='active'", (penjualan_id,)).fetchone()
+            if pen:
+                refund_amount = pen["harga_satuan"] * jumlah
+                # Log refund to kas ledger
+                log_kas(db, 'keluar', 'retur_penjualan', refund_amount, 'kas', penjualan_id, 'retur', f'Refund retur: {alasan}', user['id'])
+
+        # Restore stock
+        db.execute("UPDATE produk SET stok = stok + ?, updated_at=CURRENT_TIMESTAMP WHERE id=?", (jumlah, produk_id))
+        # Log stock mutation
+        db.execute("""INSERT INTO stok_mutasi (produk_id, tipe, jumlah, user_id, keterangan)
+                      VALUES (?, 'masuk', ?, ?, ?)""", (produk_id, jumlah, user['id'], f"Retur penjualan: {alasan}"))
+
+        db.execute("""INSERT INTO retur_penjualan (penjualan_id, pelanggan_id, produk_id, serial_number_id,
+                       jumlah, alasan, tipe_retur, jumlah_refund, user_id, keterangan)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (penjualan_id if penjualan_id else None, pelanggan_id if pelanggan_id else None,
+                    produk_id, serial_number_id, jumlah, alasan, tipe_retur, refund_amount, user['id'], keterangan))
+
+        log_audit(db, user, "Retur Penjualan", "retur", f"Produk ID {produk_id} x{jumlah}: {alasan} ({tipe_retur})", request.client.host if request.client else "")
+    return RedirectResponse("/retur", status_code=303)
+
+@app.post("/retur/proses/{id}")
+@require_auth
+def retur_proses(request: Request, id: int, aksi: str = Form("selesai")):
+    """Process retur: selesai or ditolak"""
+    user = request.state.user
+    with get_db() as db:
+        db.execute("UPDATE retur_penjualan SET status=? WHERE id=?", (aksi, id))
+        retur = db.execute("SELECT * FROM retur_penjualan WHERE id=?", (id,)).fetchone()
+        if aksi == "ditolak" and retur:
+            # Reverse stock if rejected
+            db.execute("UPDATE produk SET stok = stok - ? WHERE id=?", (retur["jumlah"], retur["produk_id"]))
+            # Reverse serial number status
+            if retur["serial_number_id"]:
+                db.execute("UPDATE serial_number SET status='terjual' WHERE id=?", (retur["serial_number_id"],))
+        log_audit(db, user, f"Retur {aksi.title()}", "retur", f"Retur #{id}", request.client.host if request.client else "")
+    return RedirectResponse("/retur", status_code=303)
 
 # ═══════════════════════════════════════════════════════════════════════
 # ROUTES: KATEGORI

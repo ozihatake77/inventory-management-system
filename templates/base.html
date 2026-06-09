@@ -49,9 +49,20 @@
         <a href="/" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if request.url.path == '/' %}bg-blue-700 font-medium{% endif %}">
             <span>📊</span> Dashboard
         </a>
+        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Master Data</div>
         <a href="/produk" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/produk' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>📱</span> Produk
         </a>
+        {% if user and has_perm(user, 'brand') %}
+        <a href="/brand" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/brand' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>🏷️</span> Brand
+        </a>
+        {% endif %}
+        {% if user and has_perm(user, 'serial_number') %}
+        <a href="/serial" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/serial' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>🔢</span> Serial Number
+        </a>
+        {% endif %}
         <a href="/kategori" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/kategori' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>🏷️</span> Kategori
         </a>
@@ -76,7 +87,7 @@
         </a>
         {% endif %}
 
-        {% if user and (has_perm(user, 'stok_masuk') or has_perm(user, 'stok_keluar') or has_perm(user, 'penjualan')) %}
+        {% if user and (has_perm(user, 'stok_masuk') or has_perm(user, 'stok_keluar') or has_perm(user, 'penjualan') or has_perm(user, 'retur_penjualan')) %}
         <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Transaksi</div>
         {% endif %}
         {% if user and has_perm(user, 'stok_masuk') %}
@@ -92,6 +103,11 @@
         {% if user and has_perm(user, 'penjualan') %}
         <a href="/penjualan" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/penjualan' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>💰</span> Penjualan
+        </a>
+        {% endif %}
+        {% if user and has_perm(user, 'retur_penjualan') %}
+        <a href="/retur" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/retur' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>↩️</span> Retur Penjualan
         </a>
         {% endif %}
 
