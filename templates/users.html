@@ -290,6 +290,102 @@
                             </div>
                         </label>
                     </div>
+
+                    <!-- Finance -->
+                    <label class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition">
+                        <div>
+                            <p class="text-sm font-medium text-gray-700">🏦 Finance (Kas & Bank)</p>
+                            <p class="text-xs text-gray-400">Akses kas, bank, cash flow</p>
+                        </div>
+                        <div class="relative">
+                            <input type="checkbox" name="finance" class="sr-only perm-toggle" data-feature="finance">
+                            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                        </div>
+                    </label>
+
+                    <!-- Brand -->
+                    <label class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition">
+                        <div>
+                            <p class="text-sm font-medium text-gray-700">🏷️ Brand</p>
+                            <p class="text-xs text-gray-400">Kelola brand produk</p>
+                        </div>
+                        <div class="relative">
+                            <input type="checkbox" name="brand" class="sr-only perm-toggle" data-feature="brand">
+                            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                        </div>
+                    </label>
+
+                    <!-- Serial Number -->
+                    <label class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition">
+                        <div>
+                            <p class="text-sm font-medium text-gray-700">🔢 Serial Number</p>
+                            <p class="text-xs text-gray-400">Track serial/IMEI produk</p>
+                        </div>
+                        <div class="relative">
+                            <input type="checkbox" name="serial_number" class="sr-only perm-toggle" data-feature="serial_number">
+                            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                        </div>
+                    </label>
+
+                    <!-- Retur Penjualan -->
+                    <label class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition">
+                        <div>
+                            <p class="text-sm font-medium text-gray-700">↩️ Retur Penjualan</p>
+                            <p class="text-xs text-gray-400">Kelola retur dari customer</p>
+                        </div>
+                        <div class="relative">
+                            <input type="checkbox" name="retur_penjualan" class="sr-only perm-toggle" data-feature="retur_penjualan">
+                            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                        </div>
+                    </label>
+
+                    <!-- Purchase Order -->
+                    <label class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition">
+                        <div>
+                            <p class="text-sm font-medium text-gray-700">📋 Purchase Order</p>
+                            <p class="text-xs text-gray-400">Buat & kelola PO ke supplier</p>
+                        </div>
+                        <div class="relative">
+                            <input type="checkbox" name="purchase_order" class="sr-only perm-toggle" data-feature="purchase_order">
+                            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                        </div>
+                    </label>
+
+                    <!-- Service Center -->
+                    <label class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition">
+                        <div>
+                            <p class="text-sm font-medium text-gray-700">🔧 Service Center</p>
+                            <p class="text-xs text-gray-400">Tiket service & perbaikan</p>
+                        </div>
+                        <div class="relative">
+                            <input type="checkbox" name="service" class="sr-only perm-toggle" data-feature="service">
+                            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                        </div>
+                    </label>
+
+                    <!-- Promo & Voucher -->
+                    <label class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition">
+                        <div>
+                            <p class="text-sm font-medium text-gray-700">🎫 Promo & Voucher</p>
+                            <p class="text-xs text-gray-400">Kelola promo dan voucher</p>
+                        </div>
+                        <div class="relative">
+                            <input type="checkbox" name="promo_voucher" class="sr-only perm-toggle" data-feature="promo_voucher">
+                            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                        </div>
+                    </label>
+
+                    <!-- Komisi Sales -->
+                    <label class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition">
+                        <div>
+                            <p class="text-sm font-medium text-gray-700">💰 Komisi Sales</p>
+                            <p class="text-xs text-gray-400">Komisi penjualan kasir</p>
+                        </div>
+                        <div class="relative">
+                            <input type="checkbox" name="komisi" class="sr-only perm-toggle" data-feature="komisi">
+                            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                        </div>
+                    </label>
                 </div>
 
                 <!-- Quick Actions -->
@@ -352,7 +448,11 @@ const FEATURE_LABELS = {
     'stok_lihat': 'Lihat Stok', 'stok_masuk': 'Stok Masuk', 'stok_keluar': 'Stok Keluar', 'stok_opname': 'Stok Opname',
     'supplier': 'Supplier', 'laporan': 'Laporan Keuntungan', 'laporan_kasir': 'Laporan Kasir',
     'closing': 'Closing Harian', 'garansi': 'Garansi',
-    'audit_log': 'Audit Log', 'hapus_data': 'Hapus Data'
+    'audit_log': 'Audit Log', 'hapus_data': 'Hapus Data',
+    'finance': 'Finance (Kas & Bank)', 'brand': 'Brand',
+    'serial_number': 'Serial Number', 'retur_penjualan': 'Retur Penjualan',
+    'purchase_order': 'Purchase Order', 'service': 'Service Center',
+    'promo_voucher': 'Promo & Voucher', 'komisi': 'Komisi Sales'
 };
 
 const ROLE_DEFAULTS = {{ role_defaults | tojson }};

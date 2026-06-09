@@ -1090,6 +1090,7 @@ def dashboard(request: Request):
         "bayar_hari_ini": bayar_hari_ini, "bayar_minggu_ini": bayar_minggu_ini,
         "kas_masuk_hari": kas_masuk_hari, "kas_keluar_hari": kas_keluar_hari,
         "saldo_kas": saldo_kas, "saldo_bank": saldo_bank,
+        "approval_pending_count": db.execute("SELECT COUNT(*) FROM approval WHERE status='pending'").fetchone()[0],
     })
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -2033,7 +2034,7 @@ def nota_page(request: Request, id: int, print: int = 0):
 def penjualan_void(request: Request, id: int, alasan: str = Form(...)):
     user = request.state.user
     with get_db() as db:
-        pen = db.execute("SELECT * FROM penjualan WHERE id=? AND status='active'", (id,)).fetchone()
+        pen = db.execute("SELECT pen.*, pr.nama as produk_nama FROM penjualan pen JOIN produk pr ON pen.produk_id = pr.id WHERE pen.id=? AND pen.status='active'", (id,)).fetchone()
         if not pen:
             return RedirectResponse("/penjualan?error=not_found", status_code=303)
         # Mark as voided
@@ -3868,11 +3869,14 @@ async def save_permissions(request: Request, user_id: int):
         target = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
         if not target or target["role"] == "bos":
             return RedirectResponse("/users", status_code=303)
-        db.execute("DELETE FROM user_permissions WHERE user_id = ?", (user_id,))
+        # Only update features present in form, keep the rest unchanged
+        form_features = set()
         for feature in ALL_FEATURES:
-            enabled = 1 if form.get(feature) == "on" else 0
-            db.execute("INSERT INTO user_permissions (user_id, feature, enabled) VALUES (?, ?, ?)",
-                       (user_id, feature, enabled))
+            if form.get(feature) is not None:  # Checkbox is present in form
+                form_features.add(feature)
+                enabled = 1 if form.get(feature) == "on" else 0
+                db.execute("INSERT OR REPLACE INTO user_permissions (user_id, feature, enabled) VALUES (?, ?, ?)",
+                           (user_id, feature, enabled))
         enabled_list = [f for f in ALL_FEATURES if form.get(f) == "on"]
         log_audit(db, request.state.user, "Update Permission", "user",
                   f"User: {target['username']} | Enabled: {', '.join(enabled_list) or 'none'}",

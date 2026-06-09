@@ -85,12 +85,14 @@
                     <td class="px-4 py-3 text-center">
                         <div class="flex gap-1 justify-center">
                             {% if g.status == 'aktif' %}
-                            <a href="/garansi/klaim/{{ g.id }}" onclick="return confirm('Ajukan klaim garansi ini?')"
-                               class="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs hover:bg-orange-200">🔧 Klaim</a>
+                            <form method="post" action="/garansi/klaim/{{ g.id }}" class="inline" onsubmit="return confirm('Ajukan klaim garansi ini?')">
+                                <button type="submit" class="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs hover:bg-orange-200">🔧 Klaim</button>
+                            </form>
                             {% endif %}
                             {% if user.role in ['bos', 'og'] %}
-                            <a href="/garansi/hapus/{{ g.id }}" onclick="return confirm('Hapus data garansi ini?')"
-                               class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">🗑️</a>
+                            <form method="post" action="/garansi/hapus/{{ g.id }}" class="inline" onsubmit="return confirm('Hapus data garansi ini?')">
+                                <button type="submit" class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">🗑️</button>
+                            </form>
                             {% endif %}
                         </div>
                     </td>

@@ -9,6 +9,7 @@
     items: [
         {% for item in items %}
         {
+            po_item_id: {{ item.id }},
             produk_nama: '{{ item.produk_nama }}',
             produk_kode: '{{ item.produk_kode }}',
             satuan: '{{ item.satuan or "pcs" }}',
@@ -36,7 +37,7 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     items: this.items.map(i => ({
-                        produk_nama: i.produk_nama,
+                        po_item_id: i.po_item_id,
                         jumlah_diterima: parseInt(i.jumlah_diterima) || 0
                     }))
                 })
