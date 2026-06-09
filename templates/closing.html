@@ -25,14 +25,25 @@
         <p class="text-2xl font-bold text-blue-600">{{ total_penjualan|rupiah }}</p>
         <p class="text-xs text-gray-400 mt-1">{{ jumlah_transaksi }} transaksi</p>
     </div>
+    {% if has_perm(user, 'lihat_keuntungan') %}
     <div class="bg-white rounded-xl shadow-sm border p-4">
         <p class="text-xs text-gray-500 mb-1">Total Modal (HPP)</p>
         <p class="text-2xl font-bold text-orange-600">{{ total_hpp|rupiah }}</p>
     </div>
     <div class="bg-white rounded-xl shadow-sm border p-4">
-        <p class="text-xs text-gray-500 mb-1">Keuntungan Bersih</p>
+        <p class="text-xs text-gray-500 mb-1">Keuntungan</p>
         <p class="text-2xl font-bold text-green-600">{{ keuntungan|rupiah }}</p>
     </div>
+    {% else %}
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">Total Kas Keluar</p>
+        <p class="text-2xl font-bold text-orange-600">{{ total_kas_keluar|rupiah }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">Netto Hari Ini</p>
+        <p class="text-2xl font-bold text-green-600">{{ (total_penjualan - total_kas_keluar)|rupiah }}</p>
+    </div>
+    {% endif %}
     <div class="bg-white rounded-xl shadow-sm border p-4">
         <p class="text-xs text-gray-500 mb-1">Rata-rata per Transaksi</p>
         <p class="text-2xl font-bold text-purple-600">{{ rata_rata|rupiah }}</p>
@@ -143,6 +154,7 @@
     </div>
     <div class="p-4">
         <div class="max-w-md space-y-2">
+            {% if has_perm(user, 'lihat_keuntungan') %}
             <div class="flex justify-between py-1.5 border-b border-gray-100">
                 <span class="text-gray-600">Total Penjualan Kotor</span>
                 <span class="font-medium">{{ total_penjualan|rupiah }}</span>
@@ -163,6 +175,20 @@
                 <span class="font-bold text-green-800">= Keuntungan Bersih</span>
                 <span class="font-bold text-green-700 text-lg">{{ keuntungan_bersih|rupiah }}</span>
             </div>
+            {% else %}
+            <div class="flex justify-between py-1.5 border-b border-gray-100">
+                <span class="text-gray-600">Total Pemasukan</span>
+                <span class="font-medium text-blue-600">{{ total_penjualan|rupiah }}</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b border-gray-100">
+                <span class="text-gray-600">(-) Kas Keluar / Biaya Operasional</span>
+                <span class="font-medium text-red-600">-{{ total_kas_keluar|rupiah }}</span>
+            </div>
+            <div class="flex justify-between py-2 bg-blue-50 rounded-lg px-3 mt-2">
+                <span class="font-bold text-blue-800">= Netto Hari Ini</span>
+                <span class="font-bold text-blue-700 text-lg">{{ (total_penjualan - total_kas_keluar)|rupiah }}</span>
+            </div>
+            {% endif %}
         </div>
         {% if has_perm(user, 'closing') %}
         {% if not sudah_closing %}
