@@ -36,7 +36,7 @@
             </thead>
             <tbody class="divide-y divide-gray-100">
                 {% for h in hutang %}
-                <tr class="hover:bg-gray-50">
+                <tr class="hover:bg-gray-50 {% if h.status == 'lunas' %}bg-green-50{% endif %}">
                     <td class="px-4 py-3">
                         <p class="font-medium">{{ h.pelanggan_nama }}</p>
                         <p class="text-xs text-gray-500">{{ h.pelanggan_telp or '' }}</p>
@@ -52,14 +52,22 @@
                             {{ h.status|upper }}
                         </span>
                     </td>
-                    <td class="px-4 py-3 text-center text-xs">{{ h.jatuh_tempo or '-' }}</td>
-                    <td class="px-4 py-3 text-center">
-                        {% if h.status != 'lunas' %}
-                        <button onclick="bayarHutang({{ h.id }}, {{ h.sisa }})"
-                                class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200">💰 Bayar</button>
-                        {% else %}
-                        <span class="text-xs text-gray-400">Lunas</span>
+                    <td class="px-4 py-3 text-center text-xs">
+                        {{ h.jatuh_tempo or '-' }}
+                        {% if h.jatuh_tempo and h.status != 'lunas' %}
+                            {% set today = "" %}
+                            <br><span class="text-gray-400">📅</span>
                         {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        <div class="flex gap-1 justify-center">
+                            <button onclick="lihatRiwayat({{ h.id }})"
+                                    class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200">📋 Riwayat</button>
+                            {% if h.status != 'lunas' %}
+                            <button onclick="bayarHutang({{ h.id }}, {{ h.sisa }})"
+                                    class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200">💰 Bayar</button>
+                            {% endif %}
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
@@ -73,22 +81,49 @@
 
 <!-- Modal Bayar -->
 <div id="modalBayar" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md">
         <div class="p-6">
             <h3 class="text-lg font-bold mb-4">💰 Bayar Hutang</h3>
             <form id="formBayar" method="post" action="/hutang/bayar" class="space-y-3">
                 <input type="hidden" name="hutang_id" id="bayar_id">
                 <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal Bayar</label>
+                    <input name="tanggal" id="bayar_tanggal" type="date" required
+                           class="w-full px-3 py-2 border rounded-lg text-sm">
+                </div>
+                <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Jumlah Bayar</label>
-                    <input name="jumlah" id="bayar_jumlah" type="number" required class="w-full px-3 py-2 border rounded-lg text-sm">
-                    <p class="text-xs text-gray-500 mt-1">Sisa: <span id="bayar_sisa_text"></span></p>
+                    <div class="relative">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">Rp</span>
+                        <input name="jumlah" id="bayar_jumlah" type="number" required
+                               class="w-full pl-10 pr-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div class="flex justify-between mt-1">
+                        <p class="text-xs text-gray-500">Sisa: <span id="bayar_sisa_text"></span></p>
+                        <button type="button" onclick="bayarFull()" class="text-xs text-blue-600 hover:underline">Bayar Penuh</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Metode Bayar</label>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="setMetode('tunai')" id="btn_tunai"
+                                class="flex-1 px-3 py-2 rounded-lg text-sm font-medium border-2 border-green-500 bg-green-50 text-green-700">
+                            💵 Tunai
+                        </button>
+                        <button type="button" onclick="setMetode('transfer')" id="btn_transfer"
+                                class="flex-1 px-3 py-2 rounded-lg text-sm font-medium border-2 border-gray-200 bg-white text-gray-600 hover:border-blue-300">
+                            🏦 Transfer
+                        </button>
+                    </div>
+                    <input type="hidden" name="metode_bayar" id="bayar_metode" value="tunai">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Keterangan</label>
-                    <input name="keterangan" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    <input name="keterangan" id="bayar_keterangan" class="w-full px-3 py-2 border rounded-lg text-sm"
+                           placeholder="Contoh: Bayar via BCA, dll...">
                 </div>
                 <div class="flex gap-2 pt-2">
-                    <button type="submit" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">💰 Bayar</button>
+                    <button type="submit" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">💰 Bayar</button>
                     <button type="button" onclick="document.getElementById('modalBayar').classList.add('hidden')" class="px-4 py-2 bg-gray-200 rounded-lg">Batal</button>
                 </div>
             </form>
@@ -96,13 +131,113 @@
     </div>
 </div>
 
+<!-- Modal Riwayat Pembayaran -->
+<div id="modalRiwayat" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold">📋 Riwayat Pembayaran</h3>
+                <button onclick="document.getElementById('modalRiwayat').classList.add('hidden')"
+                        class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            </div>
+            <div id="riwayatInfo" class="bg-gray-50 rounded-lg p-3 mb-4 text-sm"></div>
+            <div id="riwayatList" class="space-y-2"></div>
+            <div id="riwayatEmpty" class="hidden text-center py-8 text-gray-400">
+                <p class="text-3xl mb-2">📋</p>
+                <p>Belum ada riwayat pembayaran</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+// Set default tanggal ke hari ini
+document.getElementById('bayar_tanggal').value = new Date().toISOString().split('T')[0];
+
+let currentSisa = 0;
+
 function bayarHutang(id, sisa) {
     document.getElementById('bayar_id').value = id;
     document.getElementById('bayar_jumlah').value = sisa;
     document.getElementById('bayar_jumlah').max = sisa;
+    currentSisa = sisa;
     document.getElementById('bayar_sisa_text').textContent = 'Rp ' + sisa.toLocaleString('id-ID');
+    document.getElementById('bayar_tanggal').value = new Date().toISOString().split('T')[0];
+    document.getElementById('bayar_keterangan').value = '';
+    setMetode('tunai');
     document.getElementById('modalBayar').classList.remove('hidden');
+}
+
+function bayarFull() {
+    document.getElementById('bayar_jumlah').value = currentSisa;
+}
+
+function setMetode(metode) {
+    document.getElementById('bayar_metode').value = metode;
+    const btnTunai = document.getElementById('btn_tunai');
+    const btnTransfer = document.getElementById('btn_transfer');
+    if (metode === 'tunai') {
+        btnTunai.className = 'flex-1 px-3 py-2 rounded-lg text-sm font-medium border-2 border-green-500 bg-green-50 text-green-700';
+        btnTransfer.className = 'flex-1 px-3 py-2 rounded-lg text-sm font-medium border-2 border-gray-200 bg-white text-gray-600 hover:border-blue-300';
+    } else {
+        btnTransfer.className = 'flex-1 px-3 py-2 rounded-lg text-sm font-medium border-2 border-blue-500 bg-blue-50 text-blue-700';
+        btnTunai.className = 'flex-1 px-3 py-2 rounded-lg text-sm font-medium border-2 border-gray-200 bg-white text-gray-600 hover:border-green-300';
+    }
+}
+
+async function lihatRiwayat(hutangId) {
+    try {
+        const resp = await fetch('/hutang/riwayat/' + hutangId);
+        const data = await resp.json();
+
+        // Info hutang
+        const h = data.hutang;
+        document.getElementById('riwayatInfo').innerHTML = `
+            <div class="flex justify-between">
+                <span class="font-medium">${h.pelanggan_nama}</span>
+                <span class="px-2 py-0.5 rounded-full text-xs font-medium ${
+                    h.status === 'lunas' ? 'bg-green-100 text-green-700' :
+                    h.status === 'sebagian' ? 'bg-orange-100 text-orange-700' :
+                    'bg-red-100 text-red-700'
+                }">${h.status.toUpperCase()}</span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 mt-2 text-xs">
+                <div><span class="text-gray-500">Total:</span><br><strong>Rp ${h.jumlah.toLocaleString('id-ID')}</strong></div>
+                <div><span class="text-gray-500">Dibayar:</span><br><strong class="text-green-600">Rp ${h.sudah_bayar.toLocaleString('id-ID')}</strong></div>
+                <div><span class="text-gray-500">Sisa:</span><br><strong class="text-red-600">Rp ${h.sisa.toLocaleString('id-ID')}</strong></div>
+            </div>
+        `;
+
+        // Riwayat pembayaran
+        const list = document.getElementById('riwayatList');
+        const empty = document.getElementById('riwayatEmpty');
+
+        if (data.riwayat.length === 0) {
+            list.innerHTML = '';
+            empty.classList.remove('hidden');
+        } else {
+            empty.classList.add('hidden');
+            list.innerHTML = data.riwayat.map((r, i) => `
+                <div class="border rounded-lg p-3 ${i === 0 ? 'border-green-300 bg-green-50' : ''}">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="font-medium text-sm">Rp ${r.jumlah.toLocaleString('id-ID')}</p>
+                            <p class="text-xs text-gray-500">${r.created_at || '-'}</p>
+                        </div>
+                        <span class="px-2 py-0.5 rounded text-xs font-medium ${
+                            r.metode_bayar === 'transfer' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                        }">${r.metode_bayar === 'transfer' ? '🏦 Transfer' : '💵 Tunai'}</span>
+                    </div>
+                    ${r.keterangan ? `<p class="text-xs text-gray-500 mt-1">💬 ${r.keterangan}</p>` : ''}
+                    <p class="text-xs text-gray-400 mt-1">👤 ${r.user_nama || 'System'}</p>
+                </div>
+            `).join('');
+        }
+
+        document.getElementById('modalRiwayat').classList.remove('hidden');
+    } catch(e) {
+        alert('Error: ' + e.message);
+    }
 }
 </script>
 {% endblock %}
