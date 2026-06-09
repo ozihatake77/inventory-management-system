@@ -2795,11 +2795,10 @@ def closing_page(request: Request, tanggal: str = ""):
 def closing_proses(request: Request, tanggal: str = Form(...)):
     """Process closing — save to closing_harian table"""
     user = request.state.user
-    # Only bos/og can process closing
-    if user['role'] not in ['bos', 'og']:
-        return RedirectResponse("/closing", status_code=303)
-    
     with get_db() as db:
+        # Check permission
+        if not has_permission(db, user, 'closing'):
+            return RedirectResponse("/closing", status_code=303)
         # Check if already closed
         existing = db.execute("SELECT * FROM closing_harian WHERE tanggal = ?", (tanggal,)).fetchone()
         if existing:

@@ -164,7 +164,7 @@
                 <span class="font-bold text-green-700 text-lg">{{ keuntungan_bersih|rupiah }}</span>
             </div>
         </div>
-        {% if user.role in ['bos', 'og'] %}
+        {% if has_perm(user, 'closing') %}
         {% if not sudah_closing %}
         <div class="mt-4">
             <form method="post" action="/closing/proses">
