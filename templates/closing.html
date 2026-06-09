@@ -136,7 +136,6 @@
 </div>
 
 <!-- Ringkasan Rekonsiliasi -->
-{% if user.role in ['bos', 'og'] %}
 <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
     <div class="p-4 border-b">
         <h3 class="font-semibold text-gray-800">📋 Ringkasan Rekonsiliasi</h3>
@@ -164,6 +163,7 @@
                 <span class="font-bold text-green-700 text-lg">{{ keuntungan_bersih|rupiah }}</span>
             </div>
         </div>
+        {% if user.role in ['bos', 'og'] %}
         {% if not sudah_closing %}
         <div class="mt-4">
             <form method="post" action="/closing/proses">
@@ -180,7 +180,7 @@
             <span class="text-green-800 font-medium">Closing tanggal {{ tanggal }} sudah diproses</span>
         </div>
         {% endif %}
+        {% endif %}
     </div>
 </div>
-{% endif %}
 {% endblock %}
