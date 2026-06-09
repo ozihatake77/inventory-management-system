@@ -2375,7 +2375,7 @@ def laporan_page(request: Request):
     })
 
 @app.get("/laporan/kasir", response_class=HTMLResponse)
-@require_bos_or_og
+@require_auth
 def laporan_kasir(request: Request, dari: str = "", sampai: str = "", kasir_id: str = ""):
     """Laporan penjualan per kasir"""
     if not dari:
@@ -2461,7 +2461,7 @@ def laporan_kasir(request: Request, dari: str = "", sampai: str = "", kasir_id: 
     })
 
 @app.get("/closing", response_class=HTMLResponse)
-@require_bos_or_og
+@require_auth
 def closing_page(request: Request, tanggal: str = ""):
     """Closing/Kas Harian - rekonsiliasi"""
     if not tanggal:
