@@ -5,7 +5,15 @@
 {% block content %}
 <div class="bg-white rounded-xl shadow-sm border p-5 mb-6">
     <h3 class="font-semibold text-gray-800 mb-4">Catat Stok Keluar</h3>
-    <form method="post" action="/stok/keluar" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+    <form method="post" action="/stok/keluar" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Tipe</label>
+            <select name="tipe_detail" id="tipeDetailKeluar" onchange="toggleKetKeluar(this)" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                <option value="Retur ke Supplier">↩️ Retur ke Supplier</option>
+                <option value="Rusak">💥 Rusak</option>
+                <option value="Lainnya">📋 Lainnya</option>
+            </select>
+        </div>
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Produk</label>
             <select name="produk_id" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
@@ -22,7 +30,7 @@
         </div>
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Keterangan</label>
-            <input name="keterangan" placeholder="Rusak, return, dll"
+            <input name="keterangan" id="ketKeluar" placeholder="Detail tambahan..."
                    class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
         </div>
         <div class="flex items-end">
@@ -57,7 +65,9 @@
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Kode</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Produk</th>
                     <th class="px-4 py-3 text-center font-medium text-gray-600">Jumlah</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Tipe</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Keterangan</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Invoice</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -67,7 +77,19 @@
                     <td class="px-4 py-3 font-mono text-xs">{{ m.produk_kode }}</td>
                     <td class="px-4 py-3 font-medium">{{ m.produk_nama }}</td>
                     <td class="px-4 py-3 text-center text-red-600 font-medium">-{{ m.jumlah }}</td>
+                    <td class="px-4 py-3">
+                        {% if m.keterangan and 'Retur' in m.keterangan %}
+                        <span class="inline-block px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full font-medium">↩️ Retur</span>
+                        {% elif m.keterangan and 'Rusak' in m.keterangan %}
+                        <span class="inline-block px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full font-medium">💥 Rusak</span>
+                        {% else %}
+                        <span class="inline-block px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full font-medium">📋 Lainnya</span>
+                        {% endif %}
+                    </td>
                     <td class="px-4 py-3 text-gray-500">{{ m.keterangan or '-' }}</td>
+                    <td class="px-4 py-3 text-center">
+                        <a href="/stok/invoice/{{ m.id }}" class="text-blue-600 hover:text-blue-800 text-sm" title="Lihat Invoice">🧾</a>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -77,4 +99,19 @@
     <div class="text-center py-12 text-gray-400"><p class="text-4xl mb-2">📤</p><p>Belum ada stok keluar</p></div>
     {% endif %}
 </div>
+
+<script>
+function toggleKetKeluar(sel) {
+    const ket = document.getElementById('ketKeluar');
+    ket.value = sel.value;
+    if (sel.value === 'Retur ke Supplier') {
+        ket.placeholder = 'Nama supplier / no. faktur';
+    } else if (sel.value === 'Rusak') {
+        ket.placeholder = 'Keterangan kerusakan';
+    } else {
+        ket.placeholder = 'Detail tambahan...';
+        ket.value = '';
+    }
+}
+</script>
 {% endblock %}

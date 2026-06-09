@@ -1065,13 +1065,16 @@ def stok_masuk_page(request: Request, tgl_dari: str = "", tgl_sampai: str = ""):
 @app.post("/stok/masuk")
 @require_auth
 def stok_masuk(request: Request, produk_id: int = Form(...), jumlah: int = Form(...),
-               harga_satuan: float = Form(0), keterangan: str = Form("")):
+               harga_satuan: float = Form(0), keterangan: str = Form(""),
+               tipe_detail: str = Form("Pembelian")):
+    # Prepend tipe_detail to keterangan for badge detection
+    ket_final = f"{tipe_detail}" + (f" - {keterangan}" if keterangan else "")
     with get_db() as db:
         db.execute("UPDATE produk SET stok = stok + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (jumlah, produk_id))
         db.execute("""
             INSERT INTO stok_mutasi (produk_id, tipe, jumlah, harga_satuan, user_id, keterangan)
             VALUES (?, 'masuk', ?, ?, ?, ?)
-        """, (produk_id, jumlah, harga_satuan, request.state.user["id"], keterangan))
+        """, (produk_id, jumlah, harga_satuan, request.state.user["id"], ket_final))
         mutasi_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
         if harga_satuan > 0:
             old = db.execute("SELECT * FROM produk WHERE id=?", (produk_id,)).fetchone()
@@ -1115,7 +1118,9 @@ def stok_keluar_page(request: Request, tgl_dari: str = "", tgl_sampai: str = "")
 @app.post("/stok/keluar")
 @require_auth
 def stok_keluar(request: Request, produk_id: int = Form(...), jumlah: int = Form(...),
-                keterangan: str = Form("")):
+                keterangan: str = Form(""), tipe_detail: str = Form("Lainnya")):
+    # Prepend tipe_detail to keterangan for badge detection
+    ket_final = f"{tipe_detail}" + (f" - {keterangan}" if keterangan else "")
     with get_db() as db:
         produk = db.execute("SELECT * FROM produk WHERE id = ?", (produk_id,)).fetchone()
         if produk["stok"] < jumlah:
@@ -1124,9 +1129,9 @@ def stok_keluar(request: Request, produk_id: int = Form(...), jumlah: int = Form
         db.execute("""
             INSERT INTO stok_mutasi (produk_id, tipe, jumlah, harga_satuan, user_id, keterangan)
             VALUES (?, 'keluar', ?, ?, ?, ?)
-        """, (produk_id, jumlah, produk["harga_jual"], request.state.user["id"], keterangan))
+        """, (produk_id, jumlah, produk["harga_jual"], request.state.user["id"], ket_final))
         mutasi_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
-        log_audit(db, request.state.user, "Stok Keluar", "stok", f"Produk ID {produk_id} -{jumlah} ({keterangan})", request.client.host if request.client else "")
+        log_audit(db, request.state.user, "Stok Keluar", "stok", f"Produk ID {produk_id} -{jumlah} ({ket_final})", request.client.host if request.client else "")
     check_low_stock()
     return RedirectResponse(f"/stok/invoice/{mutasi_id}?print=1", status_code=303)
 
@@ -1147,9 +1152,29 @@ def stok_invoice(request: Request, mutasi_id: int, print: int = 0):
         return RedirectResponse("/stok/masuk", status_code=303)
 
     is_masuk = mutasi["tipe"] == "masuk"
-    title = "Bukti Stok Masuk" if is_masuk else "Bukti Stok Keluar"
-    badge_text = "📥 STOK MASUK" if is_masuk else "📤 STOK KELUAR"
-    badge_class = "badge-green" if is_masuk else "badge-red"
+    ket = mutasi["keterangan"] or ""
+    
+    # Detect tipe_detail from keterangan
+    if "Retur Penjualan" in ket:
+        title = "Bukti Retur Penjualan"
+        badge_text = "↩️ RETUR PENJUALAN"
+        badge_class = "badge-orange"
+    elif "Retur" in ket:
+        title = "Bukti Retur ke Supplier"
+        badge_text = "↩️ RETUR KE SUPPLIER"
+        badge_class = "badge-orange"
+    elif "Rusak" in ket:
+        title = "Bukti Stok Rusak"
+        badge_text = "💥 STOK RUSAK"
+        badge_class = "badge-red"
+    elif is_masuk:
+        title = "Bukti Stok Masuk"
+        badge_text = "📥 STOK MASUK"
+        badge_class = "badge-green"
+    else:
+        title = "Bukti Stok Keluar"
+        badge_text = "📤 STOK KELUAR"
+        badge_class = "badge-red"
 
     return templates.TemplateResponse(request, "invoice_universal.html", {
         "request": request,
