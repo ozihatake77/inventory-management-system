@@ -158,7 +158,7 @@ def init_db():
             keterangan TEXT DEFAULT '',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (pelanggan_id) REFERENCES pelanggan(id) ON DELETE CASCADE,
+            FOREIGN KEY (pelanggan_id) REFERENCES pelanggan(id) ON DELETE SET NULL,
             FOREIGN KEY (penjualan_id) REFERENCES penjualan(id) ON DELETE SET NULL
         );
 
@@ -322,29 +322,7 @@ def init_db():
                     for feature, enabled in defaults.items():
                         db.execute("INSERT OR IGNORE INTO user_permissions (user_id, feature, enabled) VALUES (?, ?, ?)", (u["id"], feature, int(enabled)))
         except: pass
-        # Make hutang.pelanggan_id nullable (recreate table)
-        try:
-            schema = db.execute("SELECT sql FROM sqlite_master WHERE name='hutang' AND type='table'").fetchone()
-            if schema and "NOT NULL" in schema[0] and "pelanggan_id" in schema[0]:
-                db.execute("ALTER TABLE hutang RENAME TO _hutang_migrate_tmp")
-                db.execute("""CREATE TABLE hutang (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    pelanggan_id INTEGER,
-                    penjualan_id INTEGER,
-                    jumlah REAL NOT NULL DEFAULT 0,
-                    sudah_bayar REAL NOT NULL DEFAULT 0,
-                    sisa REAL NOT NULL DEFAULT 0,
-                    status TEXT DEFAULT 'belum' CHECK(status IN ('belum', 'sebagian', 'lunas')),
-                    jatuh_tempo DATE,
-                    keterangan TEXT DEFAULT '',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (pelanggan_id) REFERENCES pelanggan(id) ON DELETE SET NULL,
-                    FOREIGN KEY (penjualan_id) REFERENCES penjualan(id) ON DELETE SET NULL
-                )""")
-                db.execute("INSERT INTO hutang SELECT * FROM _hutang_migrate_tmp")
-                db.execute("DROP TABLE _hutang_migrate_tmp")
-        except: pass
+        # hutang table already created with nullable pelanggan_id above
         # Migrate role CHECK if needed (add 'og') - safe check first
         has_og = False
         try:
