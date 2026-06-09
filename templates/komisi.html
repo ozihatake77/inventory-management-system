@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Komisi Sales - Stok Toko{% endblock %}
+{% block content %}
+<div class="p-6 space-y-6">
+    <!-- Header -->
+    <div>
+        <h1 class="text-2xl font-bold text-gray-800">💰 Komisi Sales</h1>
+        <p class="text-gray-500 text-sm">Kelola komisi penjualan kasir</p>
+    </div>
+
+    <!-- Filter -->
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <form method="get" action="/komisi" class="flex flex-col sm:flex-row gap-4 items-end">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
+                <input type="date" name="dari" value="{{ dari }}" class="border rounded-lg px-3 py-2">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
+                <input type="date" name="sampai" value="{{ sampai }}" class="border rounded-lg px-3 py-2">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Kasir</label>
+                <select name="kasir_id" class="border rounded-lg px-3 py-2">
+                    <option value="">Semua Kasir</option>
+                    {% for k in daftar_kasir %}
+                    <option value="{{ k['id'] }}" {{ 'selected' if kasir_id == k['id']|string }}>{{ k['nama'] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition">Filter</button>
+        </form>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <div class="text-sm text-blue-600">Total Komisi</div>
+            <div class="text-2xl font-bold text-blue-800">{{ total_komisi|rupiah }}</div>
+        </div>
+        <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+            <div class="text-sm text-yellow-600">Pending</div>
+            <div class="text-2xl font-bold text-yellow-800">{{ total_pending|rupiah }}</div>
+        </div>
+        <div class="bg-green-50 border border-green-200 rounded-xl p-4">
+            <div class="text-sm text-green-600">Sudah Dibayar</div>
+            <div class="text-2xl font-bold text-green-800">{{ total_dibayar|rupiah }}</div>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 border-b">
+                    <tr>
+                        <th class="px-4 py-3 text-left font-semibold text-gray-600">Tanggal</th>
+                        <th class="px-4 py-3 text-left font-semibold text-gray-600">Kasir</th>
+                        <th class="px-4 py-3 text-right font-semibold text-gray-600">Penjualan</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-600">%</th>
+                        <th class="px-4 py-3 text-right font-semibold text-gray-600">Komisi</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-600">Status</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-600">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    {% for k in komisis %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3">{{ k['tanggal'] }}</td>
+                        <td class="px-4 py-3 font-medium">{{ k['user_nama'] }}</td>
+                        <td class="px-4 py-3 text-right">{{ (k['penjualan_total'] or 0)|rupiah }}</td>
+                        <td class="px-4 py-3 text-center">{{ k['persen'] }}%</td>
+                        <td class="px-4 py-3 text-right font-semibold text-blue-700">{{ k['jumlah']|rupiah }}</td>
+                        <td class="px-4 py-3 text-center">
+                            {% if k['status'] == 'pending' %}
+                            <span class="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Pending</span>
+                            {% else %}
+                            <span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Dibayar</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            {% if k['status'] == 'pending' and user.role in ['bos', 'og'] %}
+                            <form action="/komisi/bayar/{{ k['id'] }}" method="post" class="inline" onsubmit="return confirm('Bayar komisi {{ k['jumlah']|rupiah }}?')">
+                                <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg text-xs font-medium transition">💰 Bayar</button>
+                            </form>
+                            {% elif k['status'] == 'dibayar' %}
+                            <span class="text-xs text-gray-400">✓</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not komisis %}
+                    <tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">Tidak ada data komisi untuk periode ini</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% block title %}Promo & Voucher - Stok Toko{% endblock %}
+{% block content %}
+<div class="p-6 space-y-6" x-data="{ tab: 'promo', showPromo: false, showVoucher: false }">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">🎫 Promo & Voucher</h1>
+            <p class="text-gray-500 text-sm">Kelola promo dan voucher diskon</p>
+        </div>
+        <div class="flex gap-2">
+            <button @click="showPromo = true" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition">
+                <span>➕</span> Tambah Promo
+            </button>
+            <button @click="showVoucher = true" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition">
+                <span>🎫</span> Tambah Voucher
+            </button>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex gap-2 border-b">
+        <button @click="tab = 'promo'" :class="tab === 'promo' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'" class="px-4 py-2 border-b-2 font-medium transition">🏷️ Promo</button>
+        <button @click="tab = 'voucher'" :class="tab === 'voucher' ? 'border-purple-600 text-purple-600' : 'border-transparent text-gray-500'" class="px-4 py-2 border-b-2 font-medium transition">🎫 Voucher</button>
+    </div>
+
+    <!-- Promo Table -->
+    <div x-show="tab === 'promo'" class="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 border-b">
+                    <tr>
+                        <th class="px-4 py-3 text-left font-semibold text-gray-600">Nama Promo</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-600">Tipe</th>
+                        <th class="px-4 py-3 text-right font-semibold text-gray-600">Nilai</th>
+                        <th class="px-4 py-3 text-right font-semibold text-gray-600">Min Belanja</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-600">Periode</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-600">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    {% for p in promos %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 font-medium">{{ p['nama'] }}</td>
+                        <td class="px-4 py-3 text-center">
+                            {% if p['tipe'] == 'persen' %}
+                            <span class="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">%</span>
+                            {% else %}
+                            <span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Rp</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-right font-semibold">
+                            {% if p['tipe'] == 'persen' %}{{ p['nilai'] }}%{% else %}{{ p['nilai']|rupiah }}{% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-right">{{ p['min_belanja']|rupiah }}</td>
+                        <td class="px-4 py-3 text-center text-xs">
+                            {{ p['tanggal_mulai'] or '-' }} s/d {{ p['tanggal_akhir'] or '-' }}
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            {% if p['aktif'] %}
+                            <span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Aktif</span>
+                            {% else %}
+                            <span class="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Nonaktif</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not promos %}
+                    <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Belum ada promo</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Voucher Table -->
+    <div x-show="tab === 'voucher'" class="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 border-b">
+                    <tr>
+                        <th class="px-4 py-3 text-left font-semibold text-gray-600">Kode</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-600">Tipe</th>
+                        <th class="px-4 py-3 text-right font-semibold text-gray-600">Nilai</th>
+                        <th class="px-4 py-3 text-right font-semibold text-gray-600">Min Belanja</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-600">Penggunaan</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-600">Expire</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-600">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    {% for v in vouchers %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 font-mono font-bold text-purple-700">{{ v['kode'] }}</td>
+                        <td class="px-4 py-3 text-center">
+                            {% if v['tipe'] == 'persen' %}
+                            <span class="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">%</span>
+                            {% else %}
+                            <span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Rp</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-right font-semibold">
+                            {% if v['tipe'] == 'persen' %}{{ v['nilai'] }}%{% else %}{{ v['nilai']|rupiah }}{% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-right">{{ v['min_belanja']|rupiah }}</td>
+                        <td class="px-4 py-3 text-center">{{ v['sudah_dipakai'] }}/{{ v['max_penggunaan'] }}</td>
+                        <td class="px-4 py-3 text-center text-xs">{{ v['tanggal_akhir'] or '∞' }}</td>
+                        <td class="px-4 py-3 text-center">
+                            {% if v['aktif'] and v['sudah_dipakai'] < v['max_penggunaan'] %}
+                            <span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Aktif</span>
+                            {% else %}
+                            <span class="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Habis</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not vouchers %}
+                    <tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">Belum ada voucher</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Add Promo Modal -->
+    <div x-show="showPromo" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showPromo = false">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6" @click.stop>
+            <h3 class="text-lg font-bold mb-4">➕ Tambah Promo</h3>
+            <form action="/promo/tambah" method="post" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Nama Promo</label>
+                    <input type="text" name="nama" required class="w-full border rounded-lg px-3 py-2" placeholder="Contoh: Diskon Lebaran">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tipe Diskon</label>
+                    <select name="tipe" class="w-full border rounded-lg px-3 py-2">
+                        <option value="persen">Persen (%)</option>
+                        <option value="nominal">Nominal (Rp)</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nilai Diskon</label>
+                        <input type="number" name="nilai" required class="w-full border rounded-lg px-3 py-2" min="0" step="0.01">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Min Belanja (Rp)</label>
+                        <input type="number" name="min_belanja" class="w-full border rounded-lg px-3 py-2" min="0" value="0">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal Mulai</label>
+                        <input type="date" name="tanggal_mulai" class="w-full border rounded-lg px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal Akhir</label>
+                        <input type="date" name="tanggal_akhir" class="w-full border rounded-lg px-3 py-2">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Keterangan</label>
+                    <input type="text" name="keterangan" class="w-full border rounded-lg px-3 py-2" placeholder="Catatan (opsional)">
+                </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" @click="showPromo = false" class="px-4 py-2 rounded-lg border hover:bg-gray-100">Batal</button>
+                    <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Voucher Modal -->
+    <div x-show="showVoucher" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showVoucher = false">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6" @click.stop>
+            <h3 class="text-lg font-bold mb-4">🎫 Tambah Voucher</h3>
+            <form action="/voucher/tambah" method="post" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Kode Voucher</label>
+                    <input type="text" name="kode" required class="w-full border rounded-lg px-3 py-2 font-mono uppercase" placeholder="Contoh: DISKON10">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tipe Diskon</label>
+                    <select name="tipe" class="w-full border rounded-lg px-3 py-2">
+                        <option value="persen">Persen (%)</option>
+                        <option value="nominal">Nominal (Rp)</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nilai Diskon</label>
+                        <input type="number" name="nilai" required class="w-full border rounded-lg px-3 py-2" min="0" step="0.01">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Min Belanja (Rp)</label>
+                        <input type="number" name="min_belanja" class="w-full border rounded-lg px-3 py-2" min="0" value="0">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Max Penggunaan</label>
+                        <input type="number" name="max_penggunaan" class="w-full border rounded-lg px-3 py-2" min="1" value="1">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal Expire</label>
+                        <input type="date" name="tanggal_akhir" class="w-full border rounded-lg px-3 py-2">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" @click="showVoucher = false" class="px-4 py-2 rounded-lg border hover:bg-gray-100">Batal</button>
+                    <button type="submit" class="px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -146,6 +146,23 @@
         </a>
         {% endif %}
 
+        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Lainnya</div>
+        {% if user and has_perm(user, 'service') %}
+        <a href="/service" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/service' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>🔧</span> Service Center
+        </a>
+        {% endif %}
+        {% if user and has_perm(user, 'promo_voucher') %}
+        <a href="/promo" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/promo' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>🎫</span> Promo & Voucher
+        </a>
+        {% endif %}
+        {% if user and has_perm(user, 'komisi') %}
+        <a href="/komisi" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/komisi' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>💰</span> Komisi Sales
+        </a>
+        {% endif %}
+
         {% if user and has_perm(user, 'finance') %}
         <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Finance</div>
         <a href="/finance/kas" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/finance/kas' in request.url.path %}bg-blue-700 font-medium{% endif %}">

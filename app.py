@@ -404,6 +404,66 @@ def init_db():
              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
              );
 
+             CREATE TABLE IF NOT EXISTS promo (
+             id INTEGER PRIMARY KEY AUTOINCREMENT,
+             nama TEXT NOT NULL,
+             tipe TEXT DEFAULT 'persen' CHECK(tipe IN ('persen', 'nominal')),
+             nilai REAL NOT NULL DEFAULT 0,
+             min_belanja REAL DEFAULT 0,
+             tanggal_mulai DATE,
+             tanggal_akhir DATE,
+             aktif INTEGER DEFAULT 1,
+             keterangan TEXT DEFAULT '',
+             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+             );
+
+             CREATE TABLE IF NOT EXISTS voucher (
+             id INTEGER PRIMARY KEY AUTOINCREMENT,
+             kode TEXT NOT NULL UNIQUE,
+             tipe TEXT DEFAULT 'persen' CHECK(tipe IN ('persen', 'nominal')),
+             nilai REAL NOT NULL DEFAULT 0,
+             min_belanja REAL DEFAULT 0,
+             max_penggunaan INTEGER DEFAULT 1,
+             sudah_dipakai INTEGER DEFAULT 0,
+             tanggal_akhir DATE,
+             aktif INTEGER DEFAULT 1,
+             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+             );
+
+             CREATE TABLE IF NOT EXISTS service_tiket (
+             id INTEGER PRIMARY KEY AUTOINCREMENT,
+             no_tiket TEXT NOT NULL UNIQUE,
+             pelanggan_id INTEGER,
+             produk_nama TEXT NOT NULL,
+             keluhan TEXT NOT NULL,
+             diagnosa TEXT DEFAULT '',
+             biaya_service REAL DEFAULT 0,
+             biaya_sparepart REAL DEFAULT 0,
+             status TEXT DEFAULT 'masuk' CHECK(status IN ('masuk', 'proses', 'selesai', 'diambil')),
+             tanggal_masuk DATE DEFAULT (DATE('now')),
+             tanggal_selesai DATE,
+             teknisi TEXT DEFAULT '',
+             keterangan TEXT DEFAULT '',
+             user_id INTEGER,
+             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+             FOREIGN KEY (pelanggan_id) REFERENCES pelanggan(id) ON DELETE SET NULL,
+             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+             );
+
+             CREATE TABLE IF NOT EXISTS komisi_sales (
+             id INTEGER PRIMARY KEY AUTOINCREMENT,
+             user_id INTEGER NOT NULL,
+             penjualan_id INTEGER,
+             jumlah REAL NOT NULL DEFAULT 0,
+             persen REAL NOT NULL DEFAULT 0,
+             tanggal DATE DEFAULT (DATE('now')),
+             status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'dibayar')),
+             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+             FOREIGN KEY (penjualan_id) REFERENCES penjualan(id) ON DELETE SET NULL
+             );
+
              """)
 
         # ── Migrations for existing DBs
@@ -732,6 +792,7 @@ ALL_FEATURES = [
     "supplier", "laporan", "laporan_kasir", "closing", "garansi",
     "lihat_keuntungan", "audit_log", "hapus_data",
     "finance", "brand", "serial_number", "retur_penjualan", "purchase_order",
+    "service", "promo_voucher", "komisi",
 ]
 
 ROLE_DEFAULTS = {
@@ -743,6 +804,7 @@ ROLE_DEFAULTS = {
             "supplier": False, "laporan": False, "laporan_kasir": False, "closing": False, "garansi": False,
             "lihat_keuntungan": False, "audit_log": False, "hapus_data": False,
             "finance": False, "brand": False, "serial_number": False, "retur_penjualan": False, "purchase_order": False,
+            "service": False, "promo_voucher": False, "komisi": False,
         },
 }
 
@@ -770,6 +832,14 @@ def init_user_permissions(db, user_id, role):
             "INSERT OR IGNORE INTO user_permissions (user_id, feature, enabled) VALUES (?, ?, ?)",
             (user_id, feature, int(enabled))
         )
+
+# ── Service Helper ─────────────────────────────────────────────────────
+def generate_no_tiket(db):
+    now = datetime.now()
+    prefix = f"SVC/{now.strftime('%y/%m')}/"
+    row = db.execute("SELECT COUNT(*) FROM service_tiket WHERE no_tiket LIKE ?", (f"{prefix}%",)).fetchone()
+    seq = (row[0] or 0) + 1
+    return f"{prefix}{seq:04d}"
 
 # ── Notification Helper ─────────────────────────────────────────────────
 def log_audit(db, user, aksi, kategori, detail="", ip=""):
@@ -3376,6 +3446,160 @@ async def pengaturan_simpan(request: Request):
             db.execute("INSERT OR REPLACE INTO pengaturan (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)", (key, val))
         log_audit(db, request.state.user, "Update Pengaturan", "sistem", "Pengaturan toko diupdate", request.client.host if request.client else "")
     return RedirectResponse("/pengaturan", status_code=303)
+
+# ═══════════════════════════════════════════════════════════════════════
+# ROUTES: SERVICE CENTER
+# ═══════════════════════════════════════════════════════════════════════
+@app.get("/service", response_class=HTMLResponse)
+@require_auth
+def service_page(request: Request, status: str = ""):
+    with get_db() as db:
+        query = """SELECT s.*, p.nama as pelanggan_nama, p.telepon as pelanggan_telp, u.nama as user_nama
+                   FROM service_tiket s LEFT JOIN pelanggan p ON s.pelanggan_id = p.id
+                   LEFT JOIN users u ON s.user_id = u.id WHERE 1=1"""
+        params = []
+        if status:
+            query += " AND s.status = ?"
+            params.append(status)
+        query += " ORDER BY s.created_at DESC LIMIT 100"
+        tikets = db.execute(query, params).fetchall()
+        pelanggan_list = db.execute("SELECT id, nama FROM pelanggan ORDER BY nama").fetchall()
+        stats = {}
+        for st in ['masuk', 'proses', 'selesai', 'diambil']:
+            stats[st] = db.execute("SELECT COUNT(*) FROM service_tiket WHERE status=?", (st,)).fetchone()[0]
+    return templates.TemplateResponse(request, "service.html", {
+        "request": request, "user": request.state.user, "tikets": tikets,
+        "pelanggan_list": pelanggan_list, "status_filter": status, "stats": stats
+    })
+
+@app.post("/service/tambah")
+@require_auth
+def service_tambah(request: Request, pelanggan_id: int = Form(0), produk_nama: str = Form(...),
+                   keluhan: str = Form(...), teknisi: str = Form(""), keterangan: str = Form("")):
+    user = request.state.user
+    with get_db() as db:
+        no_tiket = generate_no_tiket(db)
+        db.execute("""INSERT INTO service_tiket (no_tiket, pelanggan_id, produk_nama, keluhan, teknisi, keterangan, user_id)
+                      VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                   (no_tiket, pelanggan_id if pelanggan_id else None, produk_nama, keluhan, teknisi, keterangan, user['id']))
+        log_audit(db, user, "Tiket Service Baru", "service", f"{no_tiket}: {produk_nama}", request.client.host if request.client else "")
+    return RedirectResponse("/service", status_code=303)
+
+@app.post("/service/update/{id}")
+@require_auth
+def service_update(request: Request, id: int, status: str = Form(...), diagnosa: str = Form(""),
+                   biaya_service: float = Form(0), biaya_sparepart: float = Form(0)):
+    user = request.state.user
+    with get_db() as db:
+        tanggal_selesai = datetime.now().strftime("%Y-%m-%d") if status == 'selesai' else None
+        db.execute("""UPDATE service_tiket SET status=?, diagnosa=?, biaya_service=?, biaya_sparepart=?,
+                      tanggal_selesai=COALESCE(?, tanggal_selesai), updated_at=CURRENT_TIMESTAMP WHERE id=?""",
+                   (status, diagnosa, biaya_service, biaya_sparepart, tanggal_selesai, id))
+        # If selesai, log to kas (service income)
+        if status == 'selesai' and (biaya_service + biaya_sparepart) > 0:
+            total = biaya_service + biaya_sparepart
+            log_kas(db, 'masuk', 'service', total, 'kas', id, 'service', f'Service #{id}', user['id'])
+        log_audit(db, user, "Update Service", "service", f"Tiket #{id}: {status}", request.client.host if request.client else "")
+    return RedirectResponse("/service", status_code=303)
+
+# ═══════════════════════════════════════════════════════════════════════
+# ROUTES: PROMO & VOUCHER
+# ═══════════════════════════════════════════════════════════════════════
+@app.get("/promo", response_class=HTMLResponse)
+@require_auth
+def promo_page(request: Request):
+    with get_db() as db:
+        promos = db.execute("SELECT * FROM promo ORDER BY created_at DESC").fetchall()
+        vouchers = db.execute("SELECT * FROM voucher ORDER BY created_at DESC").fetchall()
+    return templates.TemplateResponse(request, "promo.html", {
+        "request": request, "user": request.state.user, "promos": promos, "vouchers": vouchers
+    })
+
+@app.post("/promo/tambah")
+@require_auth
+def promo_tambah(request: Request, nama: str = Form(...), tipe: str = Form("persen"),
+                 nilai: float = Form(0), min_belanja: float = Form(0),
+                 tanggal_mulai: str = Form(""), tanggal_akhir: str = Form(""), keterangan: str = Form("")):
+    user = request.state.user
+    with get_db() as db:
+        db.execute("""INSERT INTO promo (nama, tipe, nilai, min_belanja, tanggal_mulai, tanggal_akhir, keterangan)
+                      VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                   (nama, tipe, nilai, min_belanja, tanggal_mulai or None, tanggal_akhir or None, keterangan))
+        log_audit(db, user, "Tambah Promo", "promo", nama, request.client.host if request.client else "")
+    return RedirectResponse("/promo", status_code=303)
+
+@app.post("/voucher/tambah")
+@require_auth
+def voucher_tambah(request: Request, kode: str = Form(...), tipe: str = Form("persen"),
+                   nilai: float = Form(0), min_belanja: float = Form(0),
+                   max_penggunaan: int = Form(1), tanggal_akhir: str = Form("")):
+    user = request.state.user
+    with get_db() as db:
+        db.execute("""INSERT INTO voucher (kode, tipe, nilai, min_belanja, max_penggunaan, tanggal_akhir)
+                      VALUES (?, ?, ?, ?, ?, ?)""",
+                   (kode.upper(), tipe, nilai, min_belanja, max_penggunaan, tanggal_akhir or None))
+        log_audit(db, user, "Tambah Voucher", "voucher", kode, request.client.host if request.client else "")
+    return RedirectResponse("/promo", status_code=303)
+
+@app.get("/api/voucher/{kode}")
+@require_auth
+def api_voucher_check(request: Request, kode: str):
+    with get_db() as db:
+        v = db.execute("SELECT * FROM voucher WHERE kode=? AND aktif=1", (kode.upper(),)).fetchone()
+        if not v:
+            return {"found": False}
+        if v['tanggal_akhir'] and v['tanggal_akhir'] < datetime.now().strftime("%Y-%m-%d"):
+            return {"found": False, "error": "Voucher expired"}
+        if v['sudah_dipakai'] >= v['max_penggunaan']:
+            return {"found": False, "error": "Voucher habis"}
+        return {"found": True, "tipe": v['tipe'], "nilai": v['nilai'], "min_belanja": v['min_belanja']}
+
+# ═══════════════════════════════════════════════════════════════════════
+# ROUTES: KOMISI SALES
+# ═══════════════════════════════════════════════════════════════════════
+@app.get("/komisi", response_class=HTMLResponse)
+@require_auth
+def komisi_page(request: Request, dari: str = "", sampai: str = "", kasir_id: str = ""):
+    if not dari:
+        dari = datetime.now().strftime("%Y-%m-01")
+    if not sampai:
+        sampai = datetime.now().strftime("%Y-%m-%d")
+    
+    with get_db() as db:
+        query = """SELECT k.*, u.nama as user_nama, p.total as penjualan_total
+                   FROM komisi_sales k
+                   JOIN users u ON k.user_id = u.id
+                   LEFT JOIN penjualan p ON k.penjualan_id = p.id
+                   WHERE k.tanggal >= ? AND k.tanggal <= ?"""
+        params = [dari, sampai]
+        if kasir_id:
+            query += " AND k.user_id = ?"
+            params.append(int(kasir_id))
+        query += " ORDER BY k.created_at DESC"
+        komisis = db.execute(query, params).fetchall()
+        
+        daftar_kasir = db.execute("SELECT id, nama FROM users WHERE aktif=1 ORDER BY nama").fetchall()
+        
+        total_komisi = sum(k['jumlah'] for k in komisis)
+        total_pending = sum(k['jumlah'] for k in komisis if k['status'] == 'pending')
+        total_dibayar = sum(k['jumlah'] for k in komisis if k['status'] == 'dibayar')
+    
+    return templates.TemplateResponse(request, "komisi.html", {
+        "request": request, "user": request.state.user,
+        "komisis": komisis, "daftar_kasir": daftar_kasir,
+        "dari": dari, "sampai": sampai, "kasir_id": kasir_id,
+        "total_komisi": total_komisi, "total_pending": total_pending, "total_dibayar": total_dibayar
+    })
+
+@app.post("/komisi/bayar/{id}")
+@require_bos_or_og
+def komisi_bayar(request: Request, id: int):
+    with get_db() as db:
+        k = db.execute("SELECT * FROM komisi_sales WHERE id=?", (id,)).fetchone()
+        if k:
+            db.execute("UPDATE komisi_sales SET status='dibayar' WHERE id=?", (id,))
+            log_kas(db, 'keluar', 'komisi_sales', k['jumlah'], 'kas', id, 'komisi', f'Komisi #{id}', request.state.user['id'])
+    return RedirectResponse("/komisi", status_code=303)
 
 # ═══════════════════════════════════════════════════════════════════════
 # ROUTES: KATEGORI
