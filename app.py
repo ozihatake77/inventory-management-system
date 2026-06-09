@@ -1070,6 +1070,7 @@ def stok_masuk(request: Request, produk_id: int = Form(...), jumlah: int = Form(
             INSERT INTO stok_mutasi (produk_id, tipe, jumlah, harga_satuan, user_id, keterangan)
             VALUES (?, 'masuk', ?, ?, ?, ?)
         """, (produk_id, jumlah, harga_satuan, request.state.user["id"], keterangan))
+        mutasi_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
         if harga_satuan > 0:
             old = db.execute("SELECT * FROM produk WHERE id=?", (produk_id,)).fetchone()
             if old and old["harga_modal"] != harga_satuan:
@@ -1078,9 +1079,9 @@ def stok_masuk(request: Request, produk_id: int = Form(...), jumlah: int = Form(
                     VALUES (?, ?, ?, ?, ?, ?)
                 """, (produk_id, old["harga_modal"], old["harga_jual"], harga_satuan, old["harga_jual"], request.state.user["id"]))
             db.execute("UPDATE produk SET harga_modal = ? WHERE id = ?", (harga_satuan, produk_id))
-        log_audit(db, request.state.user, "Stok Masuk", "stok", f"Produk ID {produk_id} +{jumlah}", request.client.host)
+        log_audit(db, request.state.user, "Stok Masuk", "stok", f"Produk ID {produk_id} +{jumlah}", request.client.host if request.client else "")
     check_low_stock()
-    return RedirectResponse("/stok/masuk", status_code=303)
+    return RedirectResponse(f"/stok/invoice/{mutasi_id}?print=1", status_code=303)
 
 # ═══════════════════════════════════════════════════════════════════════
 # ROUTES: STOK KELUAR
@@ -1122,9 +1123,60 @@ def stok_keluar(request: Request, produk_id: int = Form(...), jumlah: int = Form
             INSERT INTO stok_mutasi (produk_id, tipe, jumlah, harga_satuan, user_id, keterangan)
             VALUES (?, 'keluar', ?, ?, ?, ?)
         """, (produk_id, jumlah, produk["harga_jual"], request.state.user["id"], keterangan))
-        log_audit(db, request.state.user, "Stok Keluar", "stok", f"Produk ID {produk_id} -{jumlah} ({keterangan})", request.client.host)
+        mutasi_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+        log_audit(db, request.state.user, "Stok Keluar", "stok", f"Produk ID {produk_id} -{jumlah} ({keterangan})", request.client.host if request.client else "")
     check_low_stock()
-    return RedirectResponse("/stok/keluar", status_code=303)
+    return RedirectResponse(f"/stok/invoice/{mutasi_id}?print=1", status_code=303)
+
+@app.get("/stok/invoice/{mutasi_id}", response_class=HTMLResponse)
+@require_auth
+def stok_invoice(request: Request, mutasi_id: int, print: int = 0):
+    with get_db() as db:
+        mutasi = db.execute("""
+            SELECT m.*, p.nama as produk_nama, p.kode as produk_kode, p.satuan,
+                   u.nama as user_nama
+            FROM stok_mutasi m
+            JOIN produk p ON m.produk_id = p.id
+            LEFT JOIN users u ON m.user_id = u.id
+            WHERE m.id = ?
+        """, (mutasi_id,)).fetchone()
+
+    if not mutasi:
+        return RedirectResponse("/stok/masuk", status_code=303)
+
+    is_masuk = mutasi["tipe"] == "masuk"
+    title = "Bukti Stok Masuk" if is_masuk else "Bukti Stok Keluar"
+    badge_text = "📥 STOK MASUK" if is_masuk else "📤 STOK KELUAR"
+    badge_class = "badge-green" if is_masuk else "badge-red"
+
+    return templates.TemplateResponse(request, "invoice_universal.html", {
+        "request": request,
+        "user": request.state.user,
+        "title": title,
+        "no_invoice": f"STK-{mutasi['tipe'].upper()}-{mutasi_id:06d}",
+        "tanggal": mutasi["created_at"] or datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "badge_class": badge_class,
+        "badge_text": badge_text,
+        "info_label": "Produk",
+        "info_value": mutasi["produk_nama"],
+        "info_extra": f"Kode: {mutasi['produk_kode']}" if mutasi["produk_kode"] else "",
+        "detail_items": [
+            {"label": "Jumlah", "value": f"{'+ ' if is_masuk else '- '}{mutasi['jumlah']} {mutasi['satuan'] or 'pcs'}"},
+            {"label": "Harga Satuan", "value": f"Rp {mutasi['harga_satuan']:,.0f}" if mutasi["harga_satuan"] else "-"},
+            {"label": "Total Nilai", "value": f"Rp {mutasi['harga_satuan'] * mutasi['jumlah']:,.0f}" if mutasi["harga_satuan"] else "-"},
+            {"label": "Keterangan", "value": mutasi["keterangan"] or "-"},
+            {"label": "Diproses oleh", "value": mutasi["user_nama"] or "-"},
+        ],
+        "table_items": [],
+        "table_columns": [],
+        "total_rows": [
+            {"label": "Jumlah", "value": f"{'+ ' if is_masuk else '- '}{mutasi['jumlah']} {mutasi['satuan'] or 'pcs'}", "color": "#16a34a" if is_masuk else "#dc2626"},
+        ],
+        "footer_note": "Simpan bukti ini sebagai arahan persediaan barang",
+        "printed_by": request.state.user.get("nama", "-"),
+        "printed_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "auto_print": print,
+    })
 
 # ═══════════════════════════════════════════════════════════════════════
 # ROUTES: APPROVAL
