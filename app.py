@@ -1078,6 +1078,7 @@ def dashboard(request: Request):
         kas_keluar_hari = db.execute("SELECT COALESCE(SUM(jumlah), 0) FROM kas_transaksi WHERE tipe='keluar' AND tanggal = ?", (today,)).fetchone()[0]
         saldo_kas = db.execute("SELECT COALESCE(SUM(CASE WHEN tipe='masuk' THEN jumlah ELSE -jumlah END), 0) FROM kas_transaksi WHERE metode='kas'").fetchone()[0]
         saldo_bank = db.execute("SELECT COALESCE(SUM(CASE WHEN tipe='masuk' THEN jumlah ELSE -jumlah END), 0) FROM kas_transaksi WHERE metode='bank'").fetchone()[0]
+        approval_pending_count = db.execute("SELECT COUNT(*) FROM approval WHERE status='pending'").fetchone()[0]
 
     return templates.TemplateResponse(request, "dashboard.html", {
         "user": user, "total_produk": total_produk, "total_stok": total_stok,
@@ -1090,7 +1091,7 @@ def dashboard(request: Request):
         "bayar_hari_ini": bayar_hari_ini, "bayar_minggu_ini": bayar_minggu_ini,
         "kas_masuk_hari": kas_masuk_hari, "kas_keluar_hari": kas_keluar_hari,
         "saldo_kas": saldo_kas, "saldo_bank": saldo_bank,
-        "approval_pending_count": db.execute("SELECT COUNT(*) FROM approval WHERE status='pending'").fetchone()[0],
+        "approval_pending_count": approval_pending_count,
     })
 
 # ═══════════════════════════════════════════════════════════════════════
