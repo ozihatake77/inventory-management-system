@@ -606,7 +606,8 @@ def require_bos_or_og(f):
 ALL_FEATURES = [
     "penjualan", "hutang",
     "stok_lihat", "stok_masuk", "stok_keluar", "stok_opname",
-    "laporan", "lihat_keuntungan", "audit_log", "hapus_data",
+    "supplier", "laporan", "laporan_kasir", "closing", "garansi",
+    "lihat_keuntungan", "audit_log", "hapus_data",
 ]
 
 ROLE_DEFAULTS = {
@@ -615,7 +616,8 @@ ROLE_DEFAULTS = {
     "karyawan": {
             "penjualan": True, "hutang": True,
             "stok_lihat": True, "stok_masuk": False, "stok_keluar": False, "stok_opname": False,
-            "laporan": False, "lihat_keuntungan": False, "audit_log": False, "hapus_data": False,
+            "supplier": False, "laporan": False, "laporan_kasir": False, "closing": False, "garansi": False,
+            "lihat_keuntungan": False, "audit_log": False, "hapus_data": False,
         },
 }
 

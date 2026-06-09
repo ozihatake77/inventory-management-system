@@ -64,6 +64,8 @@
         <a href="/stok" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if request.url.path == '/stok' %}bg-blue-700 font-medium{% endif %}">
             <span>📦</span> Stok
         </a>
+        {% endif %}
+        {% if user and has_perm(user, 'supplier') %}
         <a href="/supplier" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/supplier' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>🏭</span> Supplier
         </a>
@@ -105,12 +107,18 @@
         <a href="/laporan" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/laporan' == request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>📈</span> Laporan Keuntungan
         </a>
+        {% endif %}
+        {% if user and has_perm(user, 'laporan_kasir') %}
         <a href="/laporan/kasir" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/laporan/kasir' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>👤</span> Laporan Kasir
         </a>
+        {% endif %}
+        {% if user and has_perm(user, 'closing') %}
         <a href="/closing" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/closing' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>📊</span> Closing Harian
         </a>
+        {% endif %}
+        {% if user and has_perm(user, 'garansi') %}
         <a href="/garansi" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/garansi' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>🛡️</span> Garansi
         </a>

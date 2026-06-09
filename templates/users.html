@@ -211,11 +211,51 @@
                     <div class="space-y-2 pl-2">
                         <label class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
                             <div>
-                                <span class="font-medium text-sm">📈 Laporan</span>
-                                <p class="text-xs text-gray-400">Lihat laporan keuntungan</p>
+                                <span class="font-medium text-sm">🏭 Supplier</span>
+                                <p class="text-xs text-gray-400">Kelola data supplier</p>
+                            </div>
+                            <div class="relative">
+                                <input type="checkbox" name="supplier" class="sr-only perm-toggle" data-feature="supplier">
+                                <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                            </div>
+                        </label>
+                        <label class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                            <div>
+                                <span class="font-medium text-sm">📈 Laporan Keuntungan</span>
+                                <p class="text-xs text-gray-400">Lihat laporan keuntungan harian/mingguan/bulanan</p>
                             </div>
                             <div class="relative">
                                 <input type="checkbox" name="laporan" class="sr-only perm-toggle" data-feature="laporan">
+                                <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                            </div>
+                        </label>
+                        <label class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                            <div>
+                                <span class="font-medium text-sm">👤 Laporan Kasir</span>
+                                <p class="text-xs text-gray-400">Lihat penjualan per kasir</p>
+                            </div>
+                            <div class="relative">
+                                <input type="checkbox" name="laporan_kasir" class="sr-only perm-toggle" data-feature="laporan_kasir">
+                                <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                            </div>
+                        </label>
+                        <label class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                            <div>
+                                <span class="font-medium text-sm">📊 Closing Harian</span>
+                                <p class="text-xs text-gray-400">Rekonsiliasi kas harian</p>
+                            </div>
+                            <div class="relative">
+                                <input type="checkbox" name="closing" class="sr-only perm-toggle" data-feature="closing">
+                                <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
+                            </div>
+                        </label>
+                        <label class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                            <div>
+                                <span class="font-medium text-sm">🛡️ Garansi</span>
+                                <p class="text-xs text-gray-400">Kelola garansi produk</p>
+                            </div>
+                            <div class="relative">
+                                <input type="checkbox" name="garansi" class="sr-only perm-toggle" data-feature="garansi">
                                 <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full cursor-pointer"></div>
                             </div>
                         </label>
@@ -310,7 +350,9 @@ let currentRole = '';
 const FEATURE_LABELS = {
     'penjualan': 'Penjualan', 'hutang': 'Hutang/Piutang',
     'stok_lihat': 'Lihat Stok', 'stok_masuk': 'Stok Masuk', 'stok_keluar': 'Stok Keluar', 'stok_opname': 'Stok Opname',
-    'laporan': 'Laporan', 'audit_log': 'Audit Log', 'hapus_data': 'Hapus Data'
+    'supplier': 'Supplier', 'laporan': 'Laporan Keuntungan', 'laporan_kasir': 'Laporan Kasir',
+    'closing': 'Closing Harian', 'garansi': 'Garansi',
+    'audit_log': 'Audit Log', 'hapus_data': 'Hapus Data'
 };
 
 const ROLE_DEFAULTS = {{ role_defaults | tojson }};
