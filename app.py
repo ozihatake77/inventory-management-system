@@ -298,6 +298,34 @@ def init_db():
             FOREIGN KEY (pelanggan_id) REFERENCES pelanggan(id) ON DELETE SET NULL
         );
 
+        CREATE TABLE IF NOT EXISTS kas_transaksi (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tanggal DATE NOT NULL DEFAULT (DATE('now')),
+            tipe TEXT NOT NULL CHECK(tipe IN ('masuk', 'keluar')),
+            kategori TEXT NOT NULL DEFAULT 'lainnya',
+            referensi_id INTEGER,
+            referensi_tipe TEXT DEFAULT '',
+            keterangan TEXT DEFAULT '',
+            jumlah REAL NOT NULL DEFAULT 0,
+            metode TEXT DEFAULT 'kas' CHECK(metode IN ('kas', 'bank')),
+            user_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS kas_keluar_operasional (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tanggal DATE NOT NULL DEFAULT (DATE('now')),
+            kategori TEXT NOT NULL DEFAULT 'lainnya',
+            keterangan TEXT NOT NULL,
+            jumlah REAL NOT NULL DEFAULT 0,
+            metode TEXT DEFAULT 'kas' CHECK(metode IN ('kas', 'bank')),
+            bukti TEXT DEFAULT '',
+            user_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+        );
+
         """)
 
         # ── Migrations for existing DBs
@@ -608,6 +636,7 @@ ALL_FEATURES = [
     "stok_lihat", "stok_masuk", "stok_keluar", "stok_opname",
     "supplier", "laporan", "laporan_kasir", "closing", "garansi",
     "lihat_keuntungan", "audit_log", "hapus_data",
+    "finance",
 ]
 
 ROLE_DEFAULTS = {
@@ -618,6 +647,7 @@ ROLE_DEFAULTS = {
             "stok_lihat": True, "stok_masuk": False, "stok_keluar": False, "stok_opname": False,
             "supplier": False, "laporan": False, "laporan_kasir": False, "closing": False, "garansi": False,
             "lihat_keuntungan": False, "audit_log": False, "hapus_data": False,
+            "finance": False,
         },
 }
 
@@ -654,6 +684,13 @@ def log_audit(db, user, aksi, kategori, detail="", ip=""):
             "INSERT INTO audit_log (user_id, username, role, aksi, kategori, detail, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (user['id'], user['username'], user['role'], aksi, kategori, detail, ip)
         )
+
+def log_kas(db, tipe, kategori, jumlah, metode='kas', referensi_id=None, referensi_tipe='', keterangan='', user_id=None):
+    """Auto-log to kas ledger for every money movement"""
+    db.execute("""
+        INSERT INTO kas_transaksi (tanggal, tipe, kategori, referensi_id, referensi_tipe, keterangan, jumlah, metode, user_id)
+        VALUES (DATE('now'), ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (tipe, kategori, referensi_id, referensi_tipe, keterangan, jumlah, metode, user_id))
 
 def generate_no_invoice(db):
     """Generate invoice number: YY/MON/INV-XXXX (e.g. 26/JUN/INV-0001)"""
@@ -1721,7 +1758,14 @@ async def penjualan_checkout(request: Request):
                 db.execute("""INSERT INTO hutang (pelanggan_id, penjualan_id, jumlah, sudah_bayar, sisa, status, jatuh_tempo, keterangan)
                               VALUES (NULL, ?, ?, 0, ?, 'belum', ?, ?)""",
                            (pen_id, total, total, jatuh_tempo, f"Batch {batch_id}"))
-        
+
+        # Auto-log to kas ledger
+        total_masuk = sum(item['harga'] * item['jumlah'] for item in items)
+        if metode_bayar in ['tunai']:
+            log_kas(db, 'masuk', 'penjualan', total_masuk, 'kas', None, 'penjualan', f'Penjualan batch {batch_id}', user['id'])
+        elif metode_bayar in ['transfer']:
+            log_kas(db, 'masuk', 'penjualan', total_masuk, 'bank', None, 'penjualan', f'Penjualan batch {batch_id}', user['id'])
+
         # Log audit
         total_all = sum(item['harga'] * item['jumlah'] for item in items)
         log_audit(db, user, "Penjualan Batch", "penjualan",
@@ -1986,6 +2030,9 @@ def hutang_bayar(request: Request, hutang_id: int = Form(...), jumlah: float = F
                        (sudah_baru, sisa_baru, status, hutang_id))
             db.execute("INSERT INTO pembayaran_hutang (hutang_id, jumlah, user_id, metode_bayar, keterangan) VALUES (?, ?, ?, ?, ?)",
                        (hutang_id, jumlah, request.state.user["id"], metode_bayar, keterangan))
+            # Auto-log to kas ledger
+            metode_kas = 'bank' if metode_bayar == 'transfer' else 'kas'
+            log_kas(db, 'masuk', 'bayar_hutang', jumlah, metode_kas, hutang_id, 'hutang', f'Bayar hutang #{hutang_id} ({metode_bayar})', request.state.user['id'])
             log_audit(db, request.state.user, "Bayar Hutang", "hutang",
                       f"Bayar Rp {jumlah:,.0f} ({metode_bayar}) - sisa Rp {sisa_baru:,.0f}",
                       request.client.host if request.client else "")
@@ -2602,6 +2649,153 @@ def garansi_klaim(request: Request, id: int, keterangan: str = Form("")):
     with get_db() as db:
         db.execute("UPDATE garansi SET status='klaim', keterangan=? WHERE id=?", (keterangan, id))
     return RedirectResponse("/garansi", status_code=303)
+
+# ═══════════════════════════════════════════════════════════════════════
+# ROUTES: FINANCE (Kas & Bank)
+# ═══════════════════════════════════════════════════════════════════════
+@app.get("/finance/kas", response_class=HTMLResponse)
+@require_auth
+def finance_kas_page(request: Request, metode: str = "semua", tgl_dari: str = "", tgl_sampai: str = "", kategori: str = ""):
+    """Halaman Kas & Bank Ledger"""
+    with get_db() as db:
+        where = ["1=1"]
+        params = []
+        if metode and metode != "semua":
+            where.append("k.metode = ?")
+            params.append(metode)
+        if tgl_dari:
+            where.append("k.tanggal >= ?")
+            params.append(tgl_dari)
+        if tgl_sampai:
+            where.append("k.tanggal <= ?")
+            params.append(tgl_sampai)
+        if kategori:
+            where.append("k.kategori = ?")
+            params.append(kategori)
+
+        transaksi = db.execute(f"""
+            SELECT k.*, u.nama as user_nama
+            FROM kas_transaksi k
+            LEFT JOIN users u ON k.user_id = u.id
+            WHERE {' AND '.join(where)}
+            ORDER BY k.created_at DESC LIMIT 200
+        """, params).fetchall()
+
+        # Summary
+        today = datetime.now().strftime("%Y-%m-%d")
+        bulan_ini = datetime.now().strftime("%Y-%m")
+
+        # Saldo kas
+        kas_masuk = db.execute("SELECT COALESCE(SUM(jumlah), 0) FROM kas_transaksi WHERE tipe='masuk' AND metode='kas'").fetchone()[0]
+        kas_keluar = db.execute("SELECT COALESCE(SUM(jumlah), 0) FROM kas_transaksi WHERE tipe='keluar' AND metode='kas'").fetchone()[0]
+        saldo_kas = kas_masuk - kas_keluar
+
+        # Saldo bank
+        bank_masuk = db.execute("SELECT COALESCE(SUM(jumlah), 0) FROM kas_transaksi WHERE tipe='masuk' AND metode='bank'").fetchone()[0]
+        bank_keluar = db.execute("SELECT COALESCE(SUM(jumlah), 0) FROM kas_transaksi WHERE tipe='keluar' AND metode='bank'").fetchone()[0]
+        saldo_bank = bank_masuk - bank_keluar
+
+        # Hari ini
+        masuk_hari = db.execute("SELECT COALESCE(SUM(jumlah), 0) FROM kas_transaksi WHERE tipe='masuk' AND tanggal = ?", (today,)).fetchone()[0]
+        keluar_hari = db.execute("SELECT COALESCE(SUM(jumlah), 0) FROM kas_transaksi WHERE tipe='keluar' AND tanggal = ?", (today,)).fetchone()[0]
+
+        # Bulan ini
+        masuk_bulan = db.execute("SELECT COALESCE(SUM(jumlah), 0) FROM kas_transaksi WHERE tipe='masuk' AND strftime('%Y-%m', tanggal) = ?", (bulan_ini,)).fetchone()[0]
+        keluar_bulan = db.execute("SELECT COALESCE(SUM(jumlah), 0) FROM kas_transaksi WHERE tipe='keluar' AND strftime('%Y-%m', tanggal) = ?", (bulan_ini,)).fetchone()[0]
+
+        # Kategori list for filter
+        kategori_list = db.execute("SELECT DISTINCT kategori FROM kas_transaksi ORDER BY kategori").fetchall()
+
+    return templates.TemplateResponse(request, "finance_kas.html", {
+        "request": request, "user": request.state.user,
+        "transaksi": transaksi, "metode_filter": metode,
+        "tgl_dari": tgl_dari, "tgl_sampai": tgl_sampai, "kategori_filter": kategori,
+        "saldo_kas": saldo_kas, "saldo_bank": saldo_bank,
+        "masuk_hari": masuk_hari, "keluar_hari": keluar_hari,
+        "masuk_bulan": masuk_bulan, "keluar_bulan": keluar_bulan,
+        "kategori_list": kategori_list,
+    })
+
+@app.post("/finance/kas-keluar")
+@require_auth
+def kas_keluar_operasional(request: Request, tanggal: str = Form(...), kategori: str = Form("lainnya"),
+                           keterangan: str = Form(...), jumlah: float = Form(...),
+                           metode: str = Form("kas")):
+    """Catat kas keluar operasional (listrik, gaji, sewa, dll)"""
+    user = request.state.user
+    with get_db() as db:
+        db.execute("""
+            INSERT INTO kas_keluar_operasional (tanggal, kategori, keterangan, jumlah, metode, user_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (tanggal, kategori, keterangan, jumlah, metode, user['id']))
+        # Also log to kas_transaksi ledger
+        log_kas(db, 'keluar', f'operasional_{kategori}', jumlah, metode, None, 'kas_keluar', keterangan, user['id'])
+        log_audit(db, user, "Kas Keluar Operasional", "finance", f"{keterangan} - Rp {jumlah:,.0f} ({metode})", request.client.host if request.client else "")
+    return RedirectResponse("/finance/kas?tab=keluar", status_code=303)
+
+@app.get("/finance/cashflow", response_class=HTMLResponse)
+@require_auth
+def finance_cashflow(request: Request, bulan: str = ""):
+    """Cash Flow report — uang masuk dari mana, keluar ke mana"""
+    if not bulan:
+        bulan = datetime.now().strftime("%Y-%m")
+
+    with get_db() as db:
+        # Masuk by kategori
+        masuk_kategori = db.execute("""
+            SELECT kategori, COALESCE(SUM(jumlah), 0) as total, COUNT(*) as jumlah
+            FROM kas_transaksi WHERE tipe='masuk' AND strftime('%Y-%m', tanggal) = ?
+            GROUP BY kategori ORDER BY total DESC
+        """, (bulan,)).fetchall()
+
+        # Keluar by kategori
+        keluar_kategori = db.execute("""
+            SELECT kategori, COALESCE(SUM(jumlah), 0) as total, COUNT(*) as jumlah
+            FROM kas_transaksi WHERE tipe='keluar' AND strftime('%Y-%m', tanggal) = ?
+            GROUP BY kategori ORDER BY total DESC
+        """, (bulan,)).fetchall()
+
+        # Daily cash flow for chart
+        daily_flow = db.execute("""
+            SELECT tanggal,
+                   COALESCE(SUM(CASE WHEN tipe='masuk' THEN jumlah ELSE 0 END), 0) as masuk,
+                   COALESCE(SUM(CASE WHEN tipe='keluar' THEN jumlah ELSE 0 END), 0) as keluar
+            FROM kas_transaksi WHERE strftime('%Y-%m', tanggal) = ?
+            GROUP BY tanggal ORDER BY tanggal
+        """, (bulan,)).fetchall()
+
+        total_masuk = sum(r['total'] for r in masuk_kategori)
+        total_keluar = sum(r['total'] for r in keluar_kategori)
+        net_cashflow = total_masuk - total_keluar
+
+        # Kas keluar operasional
+        operasional = db.execute("""
+            SELECT kategori, COALESCE(SUM(jumlah), 0) as total, COUNT(*) as jumlah
+            FROM kas_keluar_operasional WHERE strftime('%Y-%m', tanggal) = ?
+            GROUP BY kategori ORDER BY total DESC
+        """, (bulan,)).fetchall()
+
+    return templates.TemplateResponse(request, "finance_cashflow.html", {
+        "request": request, "user": request.state.user,
+        "bulan": bulan, "masuk_kategori": masuk_kategori, "keluar_kategori": keluar_kategori,
+        "daily_flow": daily_flow, "total_masuk": total_masuk, "total_keluar": total_keluar,
+        "net_cashflow": net_cashflow, "operasional": operasional,
+    })
+
+@app.get("/api/finance/saldo")
+@require_auth
+def api_finance_saldo(request: Request):
+    """API: Get current saldo kas & bank"""
+    with get_db() as db:
+        kas_masuk = db.execute("SELECT COALESCE(SUM(jumlah), 0) FROM kas_transaksi WHERE tipe='masuk' AND metode='kas'").fetchone()[0]
+        kas_keluar = db.execute("SELECT COALESCE(SUM(jumlah), 0) FROM kas_transaksi WHERE tipe='keluar' AND metode='kas'").fetchone()[0]
+        bank_masuk = db.execute("SELECT COALESCE(SUM(jumlah), 0) FROM kas_transaksi WHERE tipe='masuk' AND metode='bank'").fetchone()[0]
+        bank_keluar = db.execute("SELECT COALESCE(SUM(jumlah), 0) FROM kas_transaksi WHERE tipe='keluar' AND metode='bank'").fetchone()[0]
+    return JSONResponse({
+        "kas": kas_masuk - kas_keluar,
+        "bank": bank_masuk - bank_keluar,
+        "total": (kas_masuk - kas_keluar) + (bank_masuk - bank_keluar)
+    })
 
 # ═══════════════════════════════════════════════════════════════════════
 # ROUTES: KATEGORI

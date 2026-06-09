@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% block title %}Cash Flow - Stok Toko{% endblock %}
+{% block header %}📈 Cash Flow{% endblock %}
+
+{% block content %}
+<!-- Month Selector -->
+<div class="bg-white rounded-xl shadow-sm border p-4 mb-4">
+    <div class="flex items-center justify-between">
+        <a href="/finance/cashflow?bulan={{ prev_bulan }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 font-medium">
+            ← Bulan Sebelumnya
+        </a>
+        <div class="text-center">
+            <h2 class="text-lg font-bold text-gray-800">{{ bulan_nama }}</h2>
+            <p class="text-xs text-gray-500">{{ bulan }}</p>
+        </div>
+        <a href="/finance/cashflow?bulan={{ next_bulan }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 font-medium">
+            Bulan Berikutnya →
+        </a>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">📈 Total Masuk</p>
+        <p class="text-2xl font-bold text-green-600">{{ total_masuk|rupiah }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">📉 Total Keluar</p>
+        <p class="text-2xl font-bold text-red-600">{{ total_keluar|rupiah }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">💰 Net Cash Flow</p>
+        <p class="text-2xl font-bold {% if net_cashflow >= 0 %}text-blue-600{% else %}text-red-600{% endif %}">
+            {% if net_cashflow >= 0 %}+{% endif %}{{ net_cashflow|rupiah }}
+        </p>
+    </div>
+</div>
+
+<!-- Bar Chart: Daily Cash Flow -->
+<div class="bg-white rounded-xl shadow-sm border p-4 mb-4">
+    <div class="flex justify-between items-center mb-4">
+        <h3 class="font-semibold text-gray-800">📊 Arus Kas Harian</h3>
+        <button onclick="window.print()" class="px-3 py-1.5 bg-gray-600 text-white rounded-lg text-xs hover:bg-gray-700 no-print">
+            🖨️ Cetak
+        </button>
+    </div>
+    <div class="relative" style="height: 300px;">
+        <canvas id="cashflowChart"></canvas>
+    </div>
+</div>
+
+<!-- Category Breakdown -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+    <!-- Pemasukan by Kategori -->
+    <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div class="p-4 border-b">
+            <h3 class="font-semibold text-gray-800">📥 Pemasukan by Kategori</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 border-b">
+                    <tr>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600">Kategori</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">Total</th>
+                        <th class="px-4 py-3 text-center font-medium text-gray-600">Jumlah</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for m in masuk_kategori %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 font-medium text-gray-700">{{ m.kategori }}</td>
+                        <td class="px-4 py-3 text-right font-medium text-green-600">{{ m.total|rupiah }}</td>
+                        <td class="px-4 py-3 text-center text-gray-600">{{ m.jumlah }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if not masuk_kategori %}
+        <div class="text-center py-8 text-gray-400 text-sm">Tidak ada pemasukan bulan ini</div>
+        {% endif %}
+    </div>
+
+    <!-- Pengeluaran by Kategori -->
+    <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div class="p-4 border-b">
+            <h3 class="font-semibold text-gray-800">📤 Pengeluaran by Kategori</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 border-b">
+                    <tr>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600">Kategori</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">Total</th>
+                        <th class="px-4 py-3 text-center font-medium text-gray-600">Jumlah</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for k in keluar_kategori %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 font-medium text-gray-700">{{ k.kategori }}</td>
+                        <td class="px-4 py-3 text-right font-medium text-red-600">{{ k.total|rupiah }}</td>
+                        <td class="px-4 py-3 text-center text-gray-600">{{ k.jumlah }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if not keluar_kategori %}
+        <div class="text-center py-8 text-gray-400 text-sm">Tidak ada pengeluaran bulan ini</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Kas Keluar Operasional Breakdown -->
+<div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+    <div class="p-4 border-b">
+        <h3 class="font-semibold text-gray-800">🧾 Kas Keluar Operasional</h3>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Kategori</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Total</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Jumlah Transaksi</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for o in operasional %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 font-medium text-gray-700">{{ o.kategori }}</td>
+                    <td class="px-4 py-3 text-right font-medium text-red-600">{{ o.total|rupiah }}</td>
+                    <td class="px-4 py-3 text-center text-gray-600">{{ o.jumlah }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% if operasional %}
+            <tfoot class="bg-gray-50 border-t">
+                <tr>
+                    <td class="px-4 py-3 font-bold text-gray-800">Total Operasional</td>
+                    <td class="px-4 py-3 text-right font-bold text-red-600">
+                        {{ operasional|sum(attribute='total')|rupiah }}
+                    </td>
+                    <td class="px-4 py-3 text-center font-bold text-gray-700">
+                        {{ operasional|sum(attribute='jumlah') }}
+                    </td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+    {% if not operasional %}
+    <div class="text-center py-8 text-gray-400 text-sm">Tidak ada kas keluar operasional bulan ini</div>
+    {% endif %}
+</div>
+
+{% block scripts %}
+<script>
+// Chart.js - Daily Cash Flow
+const dailyData = {{ daily_flow | tojson }};
+const labels = dailyData.map(d => {
+    const parts = d.tanggal.split('-');
+    return parts[2]; // day only
+});
+const masukData = dailyData.map(d => d.masuk);
+const keluarData = dailyData.map(d => d.keluar);
+
+const ctx = document.getElementById('cashflowChart').getContext('2d');
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: labels,
+        datasets: [
+            {
+                label: 'Masuk',
+                data: masukData,
+                backgroundColor: 'rgba(34, 197, 94, 0.7)',
+                borderColor: 'rgb(34, 197, 94)',
+                borderWidth: 1,
+                borderRadius: 4
+            },
+            {
+                label: 'Keluar',
+                data: keluarData,
+                backgroundColor: 'rgba(239, 68, 68, 0.7)',
+                borderColor: 'rgb(239, 68, 68)',
+                borderWidth: 1,
+                borderRadius: 4
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+            intersect: false,
+            mode: 'index'
+        },
+        plugins: {
+            legend: {
+                position: 'top',
+                labels: {
+                    usePointStyle: true,
+                    padding: 20
+                }
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        return context.dataset.label + ': Rp ' + context.parsed.y.toLocaleString('id-ID');
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                grid: {
+                    display: false
+                },
+                title: {
+                    display: true,
+                    text: 'Tanggal'
+                }
+            },
+            y: {
+                beginAtZero: true,
+                grid: {
+                    color: 'rgba(0, 0, 0, 0.05)'
+                },
+                ticks: {
+                    callback: function(value) {
+                        if (value >= 1000000) return (value / 1000000).toFixed(0) + 'jt';
+                        if (value >= 1000) return (value / 1000).toFixed(0) + 'rb';
+                        return value;
+                    }
+                }
+            }
+        }
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}

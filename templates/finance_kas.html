@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+{% block title %}Kas & Bank - Stok Toko{% endblock %}
+{% block header %}💰 Kas & Bank{% endblock %}
+
+{% block content %}
+<!-- Summary Cards -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-4">
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">💰 Saldo Kas</p>
+        <p class="text-xl font-bold text-blue-600">{{ saldo_kas|rupiah }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">🏦 Saldo Bank</p>
+        <p class="text-xl font-bold text-indigo-600">{{ saldo_bank|rupiah }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">📥 Masuk Hari Ini</p>
+        <p class="text-xl font-bold text-green-600">{{ masuk_hari|rupiah }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">📤 Keluar Hari Ini</p>
+        <p class="text-xl font-bold text-red-600">{{ keluar_hari|rupiah }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">📈 Masuk Bulan Ini</p>
+        <p class="text-xl font-bold text-green-600">{{ masuk_bulan|rupiah }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+        <p class="text-xs text-gray-500 mb-1">📉 Keluar Bulan Ini</p>
+        <p class="text-xl font-bold text-red-600">{{ keluar_bulan|rupiah }}</p>
+    </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="bg-white rounded-xl shadow-sm border p-4 mb-4">
+    <form method="get" class="flex flex-col sm:flex-row gap-3 items-end flex-wrap">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Metode</label>
+            <select name="metode" class="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                <option value="semua" {% if metode_filter == 'semua' %}selected{% endif %}>Semua</option>
+                <option value="kas" {% if metode_filter == 'kas' %}selected{% endif %}>💵 Kas</option>
+                <option value="bank" {% if metode_filter == 'bank' %}selected{% endif %}>🏦 Bank</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
+            <input type="date" name="tgl_dari" value="{{ tgl_dari or '' }}" class="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
+            <input type="date" name="tgl_sampai" value="{{ tgl_sampai or '' }}" class="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
+            <select name="kategori" class="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                <option value="">Semua Kategori</option>
+                {% for kat in kategori_list %}
+                <option value="{{ kat }}" {% if kategori_filter == kat %}selected{% endif %}>{{ kat }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 font-medium">🔍 Filter</button>
+        <a href="/finance/kas" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-300">↺ Reset</a>
+    </form>
+</div>
+
+<!-- Main Content with Tabs -->
+<div class="bg-white rounded-xl shadow-sm border overflow-hidden" x-data="{ tab: 'semua' }">
+    <!-- Tab Headers -->
+    <div class="flex border-b">
+        <button @click="tab = 'semua'" :class="tab === 'semua' ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                class="px-4 py-3 text-sm font-medium border-b-2 transition">
+            📋 Semua Transaksi
+        </button>
+        <button @click="tab = 'operasional'" :class="tab === 'operasional' ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                class="px-4 py-3 text-sm font-medium border-b-2 transition">
+            🧾 Kas Keluar Operasional
+        </button>
+    </div>
+
+    <!-- Tab: Semua Transaksi -->
+    <div x-show="tab === 'semua'">
+        <div class="p-4 border-b flex justify-between items-center">
+            <h3 class="font-semibold text-gray-800">Semua Transaksi Kas & Bank</h3>
+            <button @click="$dispatch('open-modal')" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 font-medium">
+                ➕ Kas Keluar Baru
+            </button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 border-b">
+                    <tr>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600">Tanggal</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600">Kategori</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600">Keterangan</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">Masuk</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">Keluar</th>
+                        <th class="px-4 py-3 text-center font-medium text-gray-600">Metode</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600">User</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for t in transaksi %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 font-medium text-gray-700">{{ t.tanggal }}</td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">{{ t.kategori }}</span>
+                        </td>
+                        <td class="px-4 py-3 text-gray-600">{{ t.keterangan or '-' }}</td>
+                        <td class="px-4 py-3 text-right font-medium text-green-600">
+                            {% if t.tipe == 'masuk' %}{{ t.nominal|rupiah }}{% else %}-{% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-right font-medium text-red-600">
+                            {% if t.tipe == 'keluar' %}{{ t.nominal|rupiah }}{% else %}-{% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            {% if t.metode == 'kas' %}
+                            <span class="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">💵 Kas</span>
+                            {% else %}
+                            <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">🏦 Bank</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-gray-600 text-xs">{{ t.user_nama or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if not transaksi %}
+        <div class="text-center py-12 text-gray-400">
+            <p class="text-4xl mb-2">💰</p>
+            <p>Belum ada transaksi</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Tab: Kas Keluar Operasional -->
+    <div x-show="tab === 'operasional'" x-cloak>
+        <div class="p-4 border-b flex justify-between items-center">
+            <h3 class="font-semibold text-gray-800">Kas Keluar Operasional</h3>
+            <button @click="$dispatch('open-modal')" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 font-medium">
+                ➕ Kas Keluar Baru
+            </button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 border-b">
+                    <tr>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600">Tanggal</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600">Kategori</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600">Keterangan</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">Jumlah</th>
+                        <th class="px-4 py-3 text-center font-medium text-gray-600">Metode</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600">User</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for t in transaksi %}
+                    {% if t.tipe == 'keluar' and t.kategori in ['Listrik', 'Gaji', 'Sewa', 'Transport', 'ATK', 'Lainnya'] %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 font-medium text-gray-700">{{ t.tanggal }}</td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-medium">{{ t.kategori }}</span>
+                        </td>
+                        <td class="px-4 py-3 text-gray-600">{{ t.keterangan or '-' }}</td>
+                        <td class="px-4 py-3 text-right font-medium text-red-600">{{ t.nominal|rupiah }}</td>
+                        <td class="px-4 py-3 text-center">
+                            {% if t.metode == 'kas' %}
+                            <span class="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">💵 Kas</span>
+                            {% else %}
+                            <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">🏦 Bank</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-gray-600 text-xs">{{ t.user_nama or '-' }}</td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if not transaksi %}
+        <div class="text-center py-12 text-gray-400">
+            <p class="text-4xl mb-2">🧾</p>
+            <p>Belum ada kas keluar operasional</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal: Kas Keluar Baru -->
+<div x-data="{ open: false }" @open-modal.window="open = true" x-show="open" x-cloak
+     class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md" @click.outside="open = false">
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold">➕ Kas Keluar Baru</h3>
+                <button @click="open = false" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            </div>
+            <form method="post" action="/finance/kas/tambah" class="space-y-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
+                    <input name="tanggal" type="date" required
+                           class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
+                    <select name="kategori" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                        <option value="">-- Pilih Kategori --</option>
+                        <option value="Listrik">💡 Listrik</option>
+                        <option value="Gaji">👷 Gaji</option>
+                        <option value="Sewa">🏠 Sewa</option>
+                        <option value="Transport">🚗 Transport</option>
+                        <option value="ATK">📎 ATK</option>
+                        <option value="Lainnya">📦 Lainnya</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Keterangan</label>
+                    <input name="keterangan" type="text" required placeholder="Deskripsi kas keluar..."
+                           class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Jumlah (Rp)</label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">Rp</span>
+                        <input name="nominal" type="number" min="0" required placeholder="0"
+                               class="w-full pl-10 pr-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+                <div x-data="{ metode: 'kas' }">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Metode</label>
+                    <div class="flex gap-2">
+                        <button type="button" @click="metode = 'kas'"
+                                :class="metode === 'kas' ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 bg-white text-gray-600 hover:border-green-300'"
+                                class="flex-1 px-3 py-2 rounded-lg text-sm font-medium border-2 transition">
+                            💵 Kas
+                        </button>
+                        <button type="button" @click="metode = 'bank'"
+                                :class="metode === 'bank' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300'"
+                                class="flex-1 px-3 py-2 rounded-lg text-sm font-medium border-2 transition">
+                            🏦 Bank
+                        </button>
+                    </div>
+                    <input type="hidden" name="metode" :value="metode">
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="submit" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">💾 Simpan</button>
+                    <button type="button" @click="open = false" class="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Batal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+// Set default tanggal ke hari ini on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const dateInputs = document.querySelectorAll('input[type="date"]');
+    const today = new Date().toISOString().split('T')[0];
+    dateInputs.forEach(function(input) {
+        if (!input.value) input.value = today;
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

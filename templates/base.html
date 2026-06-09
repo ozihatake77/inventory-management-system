@@ -124,6 +124,16 @@
         </a>
         {% endif %}
 
+        {% if user and has_perm(user, 'finance') %}
+        <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Finance</div>
+        <a href="/finance/kas" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/finance/kas' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>🏦</span> Kas & Bank
+        </a>
+        <a href="/finance/cashflow" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/finance/cashflow' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>📊</span> Cash Flow
+        </a>
+        {% endif %}
+
         {% if user and user.role in ['bos', 'og'] %}
         <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Approval</div>
         <a href="/approval" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/approval' in request.url.path %}bg-blue-700 font-medium{% endif %}">
