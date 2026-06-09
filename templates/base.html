@@ -87,7 +87,7 @@
         </a>
         {% endif %}
 
-        {% if user and (has_perm(user, 'stok_masuk') or has_perm(user, 'stok_keluar') or has_perm(user, 'penjualan') or has_perm(user, 'retur_penjualan')) %}
+        {% if user and (has_perm(user, 'stok_masuk') or has_perm(user, 'stok_keluar') or has_perm(user, 'penjualan') or has_perm(user, 'retur_penjualan') or has_perm(user, 'purchase_order')) %}
         <div class="pt-3 pb-1 px-3 text-xs text-blue-400 uppercase tracking-wider font-semibold">Transaksi</div>
         {% endif %}
         {% if user and has_perm(user, 'stok_masuk') %}
@@ -108,6 +108,12 @@
         {% if user and has_perm(user, 'retur_penjualan') %}
         <a href="/retur" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/retur' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>↩️</span> Retur Penjualan
+        </a>
+        {% endif %}
+
+        {% if user and has_perm(user, 'purchase_order') %}
+        <a href="/po" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/po' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>📋</span> Purchase Order
         </a>
         {% endif %}
 

@@ -364,9 +364,40 @@ def init_db():
              FOREIGN KEY (produk_id) REFERENCES produk(id) ON DELETE CASCADE,
              FOREIGN KEY (serial_number_id) REFERENCES serial_number(id) ON DELETE SET NULL,
              FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-         );
+             );
 
-        """)
+             CREATE TABLE IF NOT EXISTS purchase_order (
+             id INTEGER PRIMARY KEY AUTOINCREMENT,
+             no_po TEXT NOT NULL UNIQUE,
+             supplier_id INTEGER,
+             tanggal DATE NOT NULL DEFAULT (DATE('now')),
+             status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'disetujui', 'dikirim', 'diterima', 'selesai', 'dibatalkan')),
+             total REAL NOT NULL DEFAULT 0,
+             keterangan TEXT DEFAULT '',
+             user_id INTEGER,
+             approved_by INTEGER,
+             approved_at TIMESTAMP,
+             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+             FOREIGN KEY (supplier_id) REFERENCES supplier(id) ON DELETE SET NULL,
+             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+             FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
+             );
+
+             CREATE TABLE IF NOT EXISTS po_item (
+             id INTEGER PRIMARY KEY AUTOINCREMENT,
+             po_id INTEGER NOT NULL,
+             produk_id INTEGER NOT NULL,
+             jumlah INTEGER NOT NULL DEFAULT 1,
+             harga_satuan REAL NOT NULL DEFAULT 0,
+             jumlah_diterima INTEGER DEFAULT 0,
+             keterangan TEXT DEFAULT '',
+             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+             FOREIGN KEY (po_id) REFERENCES purchase_order(id) ON DELETE CASCADE,
+             FOREIGN KEY (produk_id) REFERENCES produk(id) ON DELETE CASCADE
+             );
+
+             """)
 
         # ── Migrations for existing DBs
         for col in ['harga_bottom']:
@@ -678,7 +709,7 @@ ALL_FEATURES = [
     "stok_lihat", "stok_masuk", "stok_keluar", "stok_opname",
     "supplier", "laporan", "laporan_kasir", "closing", "garansi",
     "lihat_keuntungan", "audit_log", "hapus_data",
-    "finance", "brand", "serial_number", "retur_penjualan",
+    "finance", "brand", "serial_number", "retur_penjualan", "purchase_order",
 ]
 
 ROLE_DEFAULTS = {
@@ -689,7 +720,7 @@ ROLE_DEFAULTS = {
             "stok_lihat": True, "stok_masuk": False, "stok_keluar": False, "stok_opname": False,
             "supplier": False, "laporan": False, "laporan_kasir": False, "closing": False, "garansi": False,
             "lihat_keuntungan": False, "audit_log": False, "hapus_data": False,
-            "finance": False, "brand": False, "serial_number": False, "retur_penjualan": False,
+            "finance": False, "brand": False, "serial_number": False, "retur_penjualan": False, "purchase_order": False,
         },
 }
 
@@ -748,6 +779,15 @@ def generate_no_invoice(db):
     ).fetchone()
     seq = (row[0] or 0) + 1
 
+    return f"{prefix}{seq:04d}"
+
+def generate_no_po(db):
+    now = datetime.now()
+    year_short = now.strftime("%y")
+    month_upper = now.strftime("%b").upper()
+    prefix = f"PO/{year_short}/{month_upper}/"
+    row = db.execute("SELECT COUNT(*) FROM purchase_order WHERE no_po LIKE ?", (f"{prefix}%",)).fetchone()
+    seq = (row[0] or 0) + 1
     return f"{prefix}{seq:04d}"
 
 def add_notif(tipe, pesan, link=""):
@@ -3066,6 +3106,178 @@ def retur_proses(request: Request, id: int, aksi: str = Form("selesai")):
                 db.execute("UPDATE serial_number SET status='terjual' WHERE id=?", (retur["serial_number_id"],))
         log_audit(db, user, f"Retur {aksi.title()}", "retur", f"Retur #{id}", request.client.host if request.client else "")
     return RedirectResponse("/retur", status_code=303)
+
+# ═══════════════════════════════════════════════════════════════════════
+# ROUTES: PURCHASE ORDER
+# ═══════════════════════════════════════════════════════════════════════
+@app.get("/po", response_class=HTMLResponse)
+@require_auth
+def po_list(request: Request, status: str = ""):
+    with get_db() as db:
+        query = """SELECT po.*, s.nama as supplier_nama, u.nama as user_nama,
+                   au.nama as approver_nama,
+                   (SELECT COUNT(*) FROM po_item WHERE po_id = po.id) as jumlah_item
+                   FROM purchase_order po
+                   LEFT JOIN supplier s ON po.supplier_id = s.id
+                   LEFT JOIN users u ON po.user_id = u.id
+                   LEFT JOIN users au ON po.approved_by = au.id WHERE 1=1"""
+        params = []
+        if status:
+            query += " AND po.status = ?"
+            params.append(status)
+        query += " ORDER BY po.created_at DESC"
+        orders = db.execute(query, params).fetchall()
+        suppliers = db.execute("SELECT id, nama FROM supplier WHERE aktif=1 ORDER BY nama").fetchall()
+        produk = db.execute("SELECT id, kode, nama, harga_modal FROM produk ORDER BY nama").fetchall()
+        stats = {}
+        for s in ['draft', 'disetujui', 'dikirim', 'diterima', 'selesai', 'dibatalkan']:
+            stats[s] = db.execute("SELECT COUNT(*) FROM purchase_order WHERE status=?", (s,)).fetchone()[0]
+    return templates.TemplateResponse(request, "po.html", {
+        "request": request, "user": request.state.user, "orders": orders,
+        "suppliers": suppliers, "produk": produk, "status_filter": status, "stats": stats
+    })
+
+@app.post("/po/buat")
+@require_auth
+async def po_buat(request: Request):
+    """Create new PO with items via JSON"""
+    import uuid
+    data = await request.json()
+    user = request.state.user
+    supplier_id = data.get("supplier_id")
+    keterangan = data.get("keterangan", "")
+    items = data.get("items", [])
+
+    if not items:
+        return {"success": False, "error": "Item kosong"}
+
+    with get_db() as db:
+        no_po = generate_no_po(db)
+        total = sum(item['harga'] * item['jumlah'] for item in items)
+
+        db.execute("""INSERT INTO purchase_order (no_po, supplier_id, tanggal, total, keterangan, user_id)
+                      VALUES (?, ?, DATE('now'), ?, ?, ?)""",
+                   (no_po, supplier_id, total, keterangan, user['id']))
+        po_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        for item in items:
+            db.execute("""INSERT INTO po_item (po_id, produk_id, jumlah, harga_satuan)
+                          VALUES (?, ?, ?, ?)""",
+                       (po_id, item['produk_id'], item['jumlah'], item['harga']))
+
+        log_audit(db, user, "Buat PO", "purchase", f"{no_po} - {len(items)} item - Rp {total:,.0f}", request.client.host if request.client else "")
+
+        db.execute("INSERT INTO notifikasi (tipe, pesan, link) VALUES ('po', ?, ?)",
+                   (f"PO Baru: {no_po} - Rp {total:,.0f} ({len(items)} item)", f"/po/detail/{po_id}"))
+
+    return {"success": True, "po_id": po_id, "no_po": no_po}
+
+@app.get("/po/detail/{id}", response_class=HTMLResponse)
+@require_auth
+def po_detail(request: Request, id: int):
+    with get_db() as db:
+        po = db.execute("""SELECT po.*, s.nama as supplier_nama, s.telepon as supplier_telp,
+                          s.alamat as supplier_alamat, u.nama as user_nama,
+                          au.nama as approver_nama
+                          FROM purchase_order po
+                          LEFT JOIN supplier s ON po.supplier_id = s.id
+                          LEFT JOIN users u ON po.user_id = u.id
+                          LEFT JOIN users au ON po.approved_by = au.id
+                          WHERE po.id = ?""", (id,)).fetchone()
+        if not po:
+            return RedirectResponse("/po", status_code=303)
+        items = db.execute("""SELECT pi.*, p.nama as produk_nama, p.kode as produk_kode, p.satuan
+                             FROM po_item pi JOIN produk p ON pi.produk_id = p.id
+                             WHERE pi.po_id = ?""", (id,)).fetchall()
+    return templates.TemplateResponse(request, "po_detail.html", {
+        "request": request, "user": request.state.user, "po": po, "items": items
+    })
+
+@app.post("/po/approve/{id}")
+@require_auth
+def po_approve(request: Request, id: int, aksi: str = Form("disetujui")):
+    """Approve/reject PO - Bos/OG only"""
+    user = request.state.user
+    if user['role'] not in ['bos', 'og']:
+        return RedirectResponse("/po", status_code=303)
+    with get_db() as db:
+        db.execute("""UPDATE purchase_order SET status=?, approved_by=?, approved_at=CURRENT_TIMESTAMP,
+                      updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='draft'""",
+                   (aksi, user['id'], id))
+        po = db.execute("SELECT no_po FROM purchase_order WHERE id=?", (id,)).fetchone()
+        log_audit(db, user, f"PO {aksi.title()}", "purchase", f"PO #{id}", request.client.host if request.client else "")
+        if po:
+            db.execute("INSERT INTO notifikasi (tipe, pesan, link) VALUES ('po', ?, ?)",
+                       (f"PO {po['no_po']} {aksi.title()}", f"/po/detail/{id}"))
+    return RedirectResponse(f"/po/detail/{id}", status_code=303)
+
+@app.post("/po/kirim/{id}")
+@require_auth
+def po_kirim(request: Request, id: int):
+    """Mark PO as sent to supplier"""
+    user = request.state.user
+    with get_db() as db:
+        db.execute("UPDATE purchase_order SET status='dikirim', updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='disetujui'", (id,))
+        log_audit(db, user, "PO Dikirim", "purchase", f"PO #{id}", request.client.host if request.client else "")
+    return RedirectResponse(f"/po/detail/{id}", status_code=303)
+
+@app.post("/po/terima/{id}")
+@require_auth
+async def po_terima(request: Request, id: int):
+    """Receive goods from PO - updates stock"""
+    data = await request.json()
+    user = request.state.user
+
+    with get_db() as db:
+        po = db.execute("SELECT * FROM purchase_order WHERE id=? AND status IN ('dikirim', 'disetujui')", (id,)).fetchone()
+        if not po:
+            return {"success": False, "error": "PO tidak ditemukan atau sudah diproses"}
+
+        items = data.get("items", [])
+        for item in items:
+            po_item_id = item['po_item_id']
+            jumlah_diterima = item['jumlah_diterima']
+
+            pi = db.execute("SELECT * FROM po_item WHERE id=? AND po_id=?", (po_item_id, id)).fetchone()
+            if not pi:
+                continue
+
+            db.execute("UPDATE po_item SET jumlah_diterima=? WHERE id=?", (jumlah_diterima, po_item_id))
+
+            db.execute("UPDATE produk SET stok = stok + ?, harga_modal = ?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                       (jumlah_diterima, pi['harga_satuan'], pi['produk_id']))
+
+            db.execute("""INSERT INTO stok_mutasi (produk_id, tipe, jumlah, harga_satuan, user_id, keterangan)
+                          VALUES (?, 'masuk', ?, ?, ?, ?)""",
+                       (pi['produk_id'], jumlah_diterima, pi['harga_satuan'], user['id'], f"PO {po['no_po']}"))
+
+            log_kas(db, 'keluar', 'pembelian_supplier', pi['harga_satuan'] * jumlah_diterima, 'bank',
+                    id, 'purchase_order', f"Pembelian PO {po['no_po']}", user['id'])
+
+        db.execute("UPDATE purchase_order SET status='diterima', updated_at=CURRENT_TIMESTAMP WHERE id=?", (id,))
+        log_audit(db, user, "PO Diterima", "purchase", f"PO #{id} - barang diterima", request.client.host if request.client else "")
+
+    check_low_stock()
+    return {"success": True}
+
+@app.post("/po/selesai/{id}")
+@require_auth
+def po_selesai(request: Request, id: int):
+    user = request.state.user
+    with get_db() as db:
+        db.execute("UPDATE purchase_order SET status='selesai', updated_at=CURRENT_TIMESTAMP WHERE id=?", (id,))
+    return RedirectResponse(f"/po/detail/{id}", status_code=303)
+
+@app.post("/po/batal/{id}")
+@require_auth
+def po_batal(request: Request, id: int, alasan: str = Form("")):
+    user = request.state.user
+    if user['role'] not in ['bos', 'og']:
+        return RedirectResponse("/po", status_code=303)
+    with get_db() as db:
+        db.execute("UPDATE purchase_order SET status='dibatalkan', keterangan=?, updated_at=CURRENT_TIMESTAMP WHERE id=?", (alasan, id))
+        log_audit(db, user, "PO Dibatalkan", "purchase", f"PO #{id}: {alasan}", request.client.host if request.client else "")
+    return RedirectResponse(f"/po/detail/{id}", status_code=303)
 
 # ═══════════════════════════════════════════════════════════════════════
 # ROUTES: KATEGORI
