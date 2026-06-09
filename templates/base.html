@@ -25,6 +25,9 @@
         .main-scroll::-webkit-scrollbar-track { background: #f3f4f6; }
         .main-scroll::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
         .main-scroll::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+        /* Print modal */
+        .print-modal-overlay { position: fixed; inset: 0; z-index: 9999; background: white; display: flex; flex-direction: column; }
+        .print-modal-overlay iframe { flex: 1; width: 100%; border: none; }
     </style>
 </head>
 <body class="bg-gray-50 h-screen flex overflow-hidden" x-data="{ sidebarOpen: false }">
@@ -327,5 +330,22 @@
 })();
 </script>
 {% endif %}
+<script>
+function printPopup(url) {
+    const overlay = document.createElement('div');
+    overlay.className = 'print-modal-overlay';
+    overlay.innerHTML = `
+        <div style="padding:10px;background:#f3f4f6;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ddd" class="no-print">
+            <span style="font-weight:600">🖨️ Preview Cetak</span>
+            <div>
+                <button onclick="this.closest('.print-modal-overlay').querySelector('iframe').contentWindow.print()" style="padding:8px 16px;background:#2563eb;color:white;border:none;border-radius:8px;cursor:pointer;margin-right:8px">🖨️ Cetak</button>
+                <button onclick="this.closest('.print-modal-overlay').remove()" style="padding:8px 16px;background:#dc2626;color:white;border:none;border-radius:8px;cursor:pointer">✕ Tutup</button>
+            </div>
+        </div>
+        <iframe src="${url}" onload="setTimeout(()=>this.contentWindow.print(), 500)"></iframe>
+    `;
+    document.body.appendChild(overlay);
+}
+</script>
 </body>
 </html>

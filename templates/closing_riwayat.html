@@ -36,7 +36,7 @@
                     <td class="px-4 py-3 text-gray-500">{{ r.user_nama or '-' }}</td>
                     <td class="px-4 py-3 text-center">
                         <a href="/closing?tanggal={{ r.tanggal }}" class="text-blue-600 hover:text-blue-800 text-sm">🔍 Detail</a>
-                        <a href="/closing/cetak?tanggal={{ r.tanggal }}" target="_blank" class="text-gray-600 hover:text-gray-800 text-sm ml-2">🖨️ Cetak</a>
+                        <a href="/closing/cetak?tanggal={{ r.tanggal }}" onclick="event.preventDefault(); printPopup(this.href)" class="text-gray-600 hover:text-gray-800 text-sm ml-2">🖨️ Cetak</a>
                     </td>
                 </tr>
                 {% endfor %}

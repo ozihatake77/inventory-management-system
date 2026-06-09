@@ -114,7 +114,7 @@
                     {% endif %}
                     <td class="px-4 py-3 text-center">
                         <div class="flex gap-1 justify-center">
-                            <a href="/penjualan/nota/{{ p.id }}" target="_blank" class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200">🖨️ Nota</a>
+                            <a href="/penjualan/nota/{{ p.id }}" onclick="event.preventDefault(); printPopup(this.href)" class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200">🖨️ Nota</a>
                             {% if p.status != 'voided' and user.role in ['bos', 'og'] %}
                             <button onclick="voidPenjualan({{ p.id }}, '{{ p.produk_nama }}')" class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">❌ Void</button>
                             {% endif %}
