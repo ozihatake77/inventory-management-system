@@ -139,6 +139,9 @@
         <a href="/closing" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/closing' in request.url.path %}bg-blue-700 font-medium{% endif %}">
             <span>📊</span> Closing Harian
         </a>
+        <a href="/closing/riwayat" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/closing/riwayat' in request.url.path %}bg-blue-700 font-medium{% endif %}">
+            <span>📋</span> Riwayat Closing
+        </a>
         {% endif %}
         {% if user and has_perm(user, 'garansi') %}
         <a href="/garansi" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-700/50 transition {% if '/garansi' in request.url.path %}bg-blue-700 font-medium{% endif %}">

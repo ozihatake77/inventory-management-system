@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Riwayat Closing{% endblock %}
+{% block header %}📋 Riwayat Closing Harian{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+    <div class="p-4 border-b flex justify-between items-center">
+        <h3 class="font-semibold text-gray-800">Riwayat Closing Harian</h3>
+        <a href="/closing" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">📊 Closing Hari Ini</a>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Tanggal</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Total Penjualan</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Total HPP</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Diskon</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Kas Keluar</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-600">Untung Bersih</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Transaksi</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">User</th>
+                    <th class="px-4 py-3 text-center font-medium text-gray-600">Aksi</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for r in riwayat %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 font-medium text-gray-800">{{ r.tanggal }}</td>
+                    <td class="px-4 py-3 text-right font-semibold text-blue-600">{{ r.total_penjualan|rupiah }}</td>
+                    <td class="px-4 py-3 text-right text-orange-600">{{ r.total_hpp|rupiah }}</td>
+                    <td class="px-4 py-3 text-right text-red-500">{{ r.total_diskon|rupiah }}</td>
+                    <td class="px-4 py-3 text-right text-red-500">{{ r.total_kas_keluar|rupiah }}</td>
+                    <td class="px-4 py-3 text-right font-bold {% if r.keuntungan_bersih >= 0 %}text-green-600{% else %}text-red-600{% endif %}">{{ r.keuntungan_bersih|rupiah }}</td>
+                    <td class="px-4 py-3 text-center">{{ r.jumlah_transaksi }}</td>
+                    <td class="px-4 py-3 text-gray-500">{{ r.user_nama or '-' }}</td>
+                    <td class="px-4 py-3 text-center">
+                        <a href="/closing?tanggal={{ r.tanggal }}" class="text-blue-600 hover:text-blue-800 text-sm">🔍 Detail</a>
+                        <a href="/closing/cetak?tanggal={{ r.tanggal }}" target="_blank" class="text-gray-600 hover:text-gray-800 text-sm ml-2">🖨️ Cetak</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if not riwayat %}
+    <div class="text-center py-12 text-gray-400">
+        <p class="text-4xl mb-2">📋</p>
+        <p>Belum ada riwayat closing</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

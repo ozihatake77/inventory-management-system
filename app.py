@@ -466,6 +466,24 @@ def init_db():
 
              """)
 
+        # ── Closing harian table
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS closing_harian (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tanggal DATE NOT NULL UNIQUE,
+                total_penjualan REAL DEFAULT 0,
+                total_hpp REAL DEFAULT 0,
+                total_keuntungan REAL DEFAULT 0,
+                total_diskon REAL DEFAULT 0,
+                total_kas_keluar REAL DEFAULT 0,
+                keuntungan_bersih REAL DEFAULT 0,
+                jumlah_transaksi INTEGER DEFAULT 0,
+                user_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+            )
+        """)
+
         # ── Migrations for existing DBs
         for col in ['harga_bottom']:
             try: db.execute(f"ALTER TABLE produk ADD COLUMN {col} REAL DEFAULT 0")
@@ -2754,7 +2772,7 @@ def closing_page(request: Request, tanggal: str = ""):
         keuntungan_bersih = total_penjualan - total_hpp - total_kas_keluar - total_diskon
 
         # Check if already closed
-        sudah_closing = False  # Can be extended with a closing table later
+        sudah_closing = db.execute("SELECT * FROM closing_harian WHERE tanggal = ?", (tanggal,)).fetchone()
 
     return templates.TemplateResponse(request, "closing.html", {
         "request": request, "user": request.state.user,
@@ -2765,6 +2783,144 @@ def closing_page(request: Request, tanggal: str = ""):
         "kas_keluar": kas_keluar, "total_kas_keluar": total_kas_keluar,
         "transaksi": transaksi, "total_diskon": total_diskon,
         "keuntungan_bersih": keuntungan_bersih, "sudah_closing": sudah_closing
+    })
+
+@app.post("/closing/proses")
+@require_auth
+def closing_proses(request: Request, tanggal: str = Form(...)):
+    """Process closing — save to closing_harian table"""
+    user = request.state.user
+    # Only bos/og can process closing
+    if user['role'] not in ['bos', 'og']:
+        return RedirectResponse("/closing", status_code=303)
+    
+    with get_db() as db:
+        # Check if already closed
+        existing = db.execute("SELECT * FROM closing_harian WHERE tanggal = ?", (tanggal,)).fetchone()
+        if existing:
+            return RedirectResponse(f"/closing?tanggal={tanggal}", status_code=303)
+        
+        # Get summary data
+        summary = db.execute("""
+            SELECT COUNT(*) as jumlah_transaksi,
+                   COALESCE(SUM(total), 0) as total_penjualan,
+                   COALESCE(SUM(keuntungan), 0) as keuntungan,
+                   COALESCE(SUM(diskon), 0) as total_diskon,
+                   COALESCE(SUM(harga_modal * jumlah), 0) as total_hpp
+            FROM penjualan WHERE DATE(created_at) = ? AND status = 'active'
+        """, (tanggal,)).fetchone()
+        
+        # Get kas keluar
+        kas_keluar_total = db.execute("""
+            SELECT COALESCE(SUM(m.harga_satuan * m.jumlah), 0)
+            FROM stok_mutasi m
+            WHERE DATE(m.created_at) = ? AND m.tipe = 'keluar' AND m.status = 'active'
+        """, (tanggal,)).fetchone()[0]
+        
+        total_penjualan = summary['total_penjualan'] or 0
+        total_hpp = summary['total_hpp'] or 0
+        total_diskon = summary['total_diskon'] or 0
+        total_kas_keluar = kas_keluar_total or 0
+        keuntungan = summary['keuntungan'] or 0
+        keuntungan_bersih = total_penjualan - total_hpp - total_kas_keluar - total_diskon
+        
+        db.execute("""
+            INSERT INTO closing_harian (tanggal, total_penjualan, total_hpp, total_keuntungan, 
+                                       total_diskon, total_kas_keluar, keuntungan_bersih, jumlah_transaksi, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (tanggal, total_penjualan, total_hpp, keuntungan, total_diskon, total_kas_keluar, 
+              keuntungan_bersih, summary['jumlah_transaksi'] or 0, user['id']))
+        
+        log_audit(db, user, "Closing Harian", "closing", 
+                  f"Tanggal {tanggal}: Penjualan Rp {total_penjualan:,.0f}, Untung Bersih Rp {keuntungan_bersih:,.0f}",
+                  request.client.host if request.client else "")
+    
+    return RedirectResponse(f"/closing?tanggal={tanggal}", status_code=303)
+
+@app.get("/closing/cetak", response_class=HTMLResponse)
+@require_auth
+def closing_cetak(request: Request, tanggal: str = ""):
+    """Printable closing report"""
+    if not tanggal:
+        tanggal = datetime.now().strftime("%Y-%m-%d")
+    
+    with get_db() as db:
+        # Get same data as closing page
+        summary = db.execute("""
+            SELECT COUNT(*) as jumlah_transaksi,
+                   COALESCE(SUM(total), 0) as total_penjualan,
+                   COALESCE(SUM(keuntungan), 0) as keuntungan,
+                   COALESCE(SUM(diskon), 0) as total_diskon,
+                   COALESCE(SUM(harga_modal * jumlah), 0) as total_hpp
+            FROM penjualan WHERE DATE(created_at) = ? AND status = 'active'
+        """, (tanggal,)).fetchone()
+        
+        pembayaran_metode = db.execute("""
+            SELECT metode_bayar as nama, COUNT(*) as jumlah, COALESCE(SUM(total), 0) as total
+            FROM penjualan WHERE DATE(created_at) = ? AND status = 'active'
+            GROUP BY metode_bayar ORDER BY total DESC
+        """, (tanggal,)).fetchall()
+        
+        kas_keluar = db.execute("""
+            SELECT m.keterangan, TIME(m.created_at) as jam,
+                   COALESCE(m.harga_satuan * m.jumlah, 0) as nominal
+            FROM stok_mutasi m
+            WHERE DATE(m.created_at) = ? AND m.tipe = 'keluar' AND m.status = 'active'
+            ORDER BY m.created_at DESC
+        """, (tanggal,)).fetchall()
+        total_kas_keluar = sum(k['nominal'] for k in kas_keluar)
+        
+        transaksi = db.execute("""
+            SELECT p.no_invoice as faktur, TIME(p.created_at) as waktu,
+                   u.nama as kasir, p.nama_customer as pelanggan,
+                   p.jumlah as jumlah_item, p.total, p.metode_bayar
+            FROM penjualan p LEFT JOIN users u ON p.user_id = u.id
+            WHERE DATE(p.created_at) = ? AND p.status = 'active'
+            ORDER BY p.created_at DESC
+        """, (tanggal,)).fetchall()
+        
+        # Check closing record
+        closing = db.execute("SELECT * FROM closing_harian WHERE tanggal = ?", (tanggal,)).fetchone()
+        
+        total_penjualan = summary['total_penjualan'] or 0
+        total_hpp = summary['total_hpp'] or 0
+        total_diskon = summary['total_diskon'] or 0
+        keuntungan = summary['keuntungan'] or 0
+        keuntungan_bersih = total_penjualan - total_hpp - total_kas_keluar - total_diskon
+        
+        # Store settings
+        settings = {}
+        try:
+            rows = db.execute("SELECT key, value FROM pengaturan").fetchall()
+            settings = {r['key']: r['value'] for r in rows}
+        except:
+            pass
+    
+    return templates.TemplateResponse(request, "closing_cetak.html", {
+        "request": request, "user": request.state.user,
+        "tanggal": tanggal, "total_penjualan": total_penjualan,
+        "jumlah_transaksi": summary['jumlah_transaksi'] or 0,
+        "total_hpp": total_hpp, "keuntungan": keuntungan,
+        "rata_rata": (total_penjualan / (summary['jumlah_transaksi'] or 1)),
+        "pembayaran_metode": pembayaran_metode,
+        "kas_keluar": kas_keluar, "total_kas_keluar": total_kas_keluar,
+        "transaksi": transaksi, "total_diskon": total_diskon,
+        "keuntungan_bersih": keuntungan_bersih, "closing": closing,
+        "settings": settings,
+    })
+
+@app.get("/closing/riwayat", response_class=HTMLResponse)
+@require_auth
+def closing_riwayat(request: Request):
+    """List all closing history"""
+    with get_db() as db:
+        riwayat = db.execute("""
+            SELECT c.*, u.nama as user_nama
+            FROM closing_harian c LEFT JOIN users u ON c.user_id = u.id
+            ORDER BY c.tanggal DESC LIMIT 100
+        """).fetchall()
+    return templates.TemplateResponse(request, "closing_riwayat.html", {
+        "request": request, "user": request.state.user, "riwayat": riwayat
     })
 
 @app.get("/garansi", response_class=HTMLResponse)

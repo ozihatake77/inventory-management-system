@@ -11,8 +11,9 @@
             <input type="date" name="tanggal" value="{{ tanggal }}" class="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
         </div>
         <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">🔍 Tampilkan</button>
-        {% if user.role in ['bos', 'og'] %}
+        {% if has_perm(user, 'closing') %}
         <a href="/closing/cetak?tanggal={{ tanggal }}" target="_blank" class="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm hover:bg-gray-700">🖨️ Cetak</a>
+        <a href="/closing/riwayat" class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">📋 Riwayat Closing</a>
         {% endif %}
     </form>
 </div>
