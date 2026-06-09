@@ -31,7 +31,7 @@
     async konfirmasiPenerimaan() {
         this.loading = true;
         try {
-            const resp = await fetch('/po/terima/{{ po.no_po }}', {
+            const resp = await fetch('/po/terima/{{ po.id }}', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
@@ -87,19 +87,19 @@
             <!-- Status Actions -->
             {% if po.status == 'draft' %}
             {% if user.role in ['bos', 'og'] %}
-            <form method="post" action="/po/setujui/{{ po.no_po }}" class="inline" onsubmit="return confirm('Setujui PO ini?')">
+            <form method="post" action="/po/approve/{{ po.id }}" class="inline" onsubmit="return confirm('Setujui PO ini?')">
                 <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 font-medium">
                     ✅ Setujui
                 </button>
             </form>
             {% endif %}
-            <form method="post" action="/po/batalkan/{{ po.no_po }}" class="inline" onsubmit="return confirm('Batalkan PO ini?')">
+            <form method="post" action="/po/batal/{{ po.id }}" class="inline" onsubmit="return confirm('Batalkan PO ini?')">
                 <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 font-medium">
                     ❌ Batalkan
                 </button>
             </form>
             {% elif po.status == 'disetujui' %}
-            <form method="post" action="/po/kirim/{{ po.no_po }}" class="inline" onsubmit="return confirm('Kirim PO ini ke supplier?')">
+            <form method="post" action="/po/kirim/{{ po.id }}" class="inline" onsubmit="return confirm('Kirim PO ini ke supplier?')">
                 <button type="submit" class="px-4 py-2 bg-yellow-600 text-white rounded-lg text-sm hover:bg-yellow-700 font-medium">
                     🚚 Kirim ke Supplier
                 </button>
@@ -111,7 +111,7 @@
             </button>
             {% elif po.status == 'diterima' %}
             {% if user.role in ['bos', 'og'] %}
-            <form method="post" action="/po/selesai/{{ po.no_po }}" class="inline" onsubmit="return confirm('Tandai PO ini selesai?')">
+            <form method="post" action="/po/selesai/{{ po.id }}" class="inline" onsubmit="return confirm('Tandai PO ini selesai?')">
                 <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 font-medium">
                     ✔️ Selesai
                 </button>

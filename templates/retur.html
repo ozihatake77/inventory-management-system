@@ -86,9 +86,11 @@
                             {% if r.status == 'proses' %}
                             <div class="flex gap-1 justify-center">
                                 <form method="post" action="/retur/proses/{{ r.id }}" class="inline">
+                                    <input type="hidden" name="aksi" value="selesai">
                                     <button type="submit" class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200">✅ Proses</button>
                                 </form>
-                                <form method="post" action="/retur/tolak/{{ r.id }}" class="inline">
+                                <form method="post" action="/retur/proses/{{ r.id }}" class="inline">
+                                    <input type="hidden" name="aksi" value="ditolak">
                                     <button type="submit" class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">❌ Tolak</button>
                                 </form>
                             </div>
