@@ -84,7 +84,7 @@
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-md">
         <div class="p-6">
             <h3 class="text-lg font-bold mb-4">💰 Bayar Hutang</h3>
-            <form id="formBayar" method="post" action="/hutang/bayar" class="space-y-3">
+            <form id="formBayar" onsubmit="submitBayar(event)" class="space-y-3">
                 <input type="hidden" name="hutang_id" id="bayar_id">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal Bayar</label>
@@ -170,6 +170,31 @@ function bayarHutang(id, sisa) {
 
 function bayarFull() {
     document.getElementById('bayar_jumlah').value = currentSisa;
+}
+
+async function submitBayar(e) {
+    e.preventDefault();
+    const form = document.getElementById('formBayar');
+    const formData = new FormData(form);
+    const btn = form.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = '⏳ Memproses...';
+    try {
+        const resp = await fetch('/hutang/bayar', { method: 'POST', body: formData });
+        const result = await resp.json();
+        if (result.success) {
+            document.getElementById('modalBayar').classList.add('hidden');
+            printPopup(result.invoice_url);
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            alert('Error: ' + (result.error || 'Gagal memproses pembayaran'));
+        }
+    } catch(e) {
+        alert('Error: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '💰 Bayar';
+    }
 }
 
 function setMetode(metode) {

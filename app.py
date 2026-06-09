@@ -2254,13 +2254,13 @@ def hutang_bayar(request: Request, hutang_id: int = Form(...), jumlah: float = F
             # Get payment ID for invoice
             pembayaran_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-        # Redirect to invoice page
-        return RedirectResponse(f"/hutang/invoice/{pembayaran_id}?print=1", status_code=303)
+        # Return JSON for AJAX
+        return {"success": True, "pembayaran_id": pembayaran_id, "invoice_url": f"/hutang/invoice/{pembayaran_id}"}
     except Exception as e:
         import traceback
         error_msg = str(e)[:100]
         print(f"ERROR hutang_bayar: {e}\n{traceback.format_exc()}")
-        return RedirectResponse(f"/hutang?error={error_msg}", status_code=303)
+        return {"success": False, "error": error_msg}
 
 @app.get("/hutang/riwayat/{hutang_id}")
 @require_auth
