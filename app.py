@@ -1330,15 +1330,12 @@ async def penjualan_checkout(request: Request):
     batch_id = str(uuid.uuid4())[:8]
     nota_ids = []
     
-    # Calculate subtotal for proportional discount distribution
-    subtotal = sum(item['harga'] * item['jumlah'] for item in items)
-    diskon = min(diskon, subtotal)  # Diskon can't exceed subtotal
-    
     with get_db() as db:
         for item in items:
             produk_id = item['produk_id']
             jumlah = item['jumlah']
-            harga = item['harga']
+            harga = item['harga']  # Already the final price (bottom price if diskon applied)
+            item_diskon = item.get('diskon_item', 0)  # Per-item diskon from frontend
             
             produk = db.execute("SELECT * FROM produk WHERE id = ?", (produk_id,)).fetchone()
             if not produk:
@@ -1346,11 +1343,8 @@ async def penjualan_checkout(request: Request):
             if produk['stok'] < jumlah:
                 return {"success": False, "error": f"Stok {produk['nama']} tidak cukup ({produk['stok']} tersisa)"}
             
-            item_total = harga * jumlah
-            # Distribute diskon proportionally
-            item_diskon = round(diskon * (item_total / subtotal)) if subtotal > 0 else 0
-            total = item_total - item_diskon
-            keuntungan = (harga - produk['harga_modal']) * jumlah - item_diskon
+            total = harga * jumlah
+            keuntungan = (harga - produk['harga_modal']) * jumlah
             
             db.execute("""
                 INSERT INTO penjualan (user_id, produk_id, jumlah, harga_satuan, harga_modal, total, keuntungan,

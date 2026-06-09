@@ -180,18 +180,26 @@
                 <h4 class="text-sm font-semibold text-gray-700 mb-2">🛒 Keranjang (<span x-text="cart.length"></span> item)</h4>
                 <div class="space-y-2 max-h-48 overflow-y-auto">
                     <template x-for="(item, index) in cart" :key="index">
-                        <div class="flex items-center justify-between bg-white border rounded-lg p-3">
+                        <div class="flex items-center justify-between bg-white border rounded-lg p-3" :class="item.useBottom ? 'border-orange-300 bg-orange-50' : ''">
                             <div class="flex-1">
                                 <p class="text-sm font-medium" x-text="item.nama"></p>
                                 <div class="flex items-center gap-2 mt-1">
                                     <input type="number" :value="item.jumlah" min="1" :max="item.stok"
                                            @change="updateQty(index, $event.target.value)"
                                            class="w-16 px-2 py-1 border rounded text-xs text-center">
-                                    <span class="text-xs text-gray-500">x <span x-text="'Rp ' + item.harga.toLocaleString('id-ID')"></span></span>
+                                    <span class="text-xs text-gray-500">
+                                        x <span :class="item.useBottom ? 'line-through text-gray-400' : ''" x-text="'Rp ' + item.harga.toLocaleString('id-ID')"></span>
+                                        <span x-show="item.useBottom" class="text-orange-600 font-medium" x-text="' Rp ' + item.hargaBottom.toLocaleString('id-ID')"></span>
+                                    </span>
                                 </div>
                             </div>
-                            <div class="flex items-center gap-2">
-                                <span class="text-sm font-bold text-blue-600" x-text="'Rp ' + (item.harga * item.jumlah).toLocaleString('id-ID')"></span>
+                            <div class="flex items-center gap-1">
+                                <span class="text-sm font-bold text-blue-600" x-text="'Rp ' + getItemTotal(index).toLocaleString('id-ID')"></span>
+                                <button @click="toggleBottom(index)" x-show="item.hargaBottom > 0"
+                                        class="px-2 py-1 rounded text-xs"
+                                        :class="item.useBottom ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-orange-100 text-orange-600 hover:bg-orange-200'"
+                                        x-text="item.useBottom ? '🏷️ Harga' : '🏷️ Bottom'">
+                                </button>
                                 <button @click="removeFromCart(index)" class="px-2 py-1 bg-red-100 text-red-600 rounded text-xs hover:bg-red-200">🗑️</button>
                             </div>
                         </div>
@@ -231,34 +239,20 @@
                 </div>
             </div>
 
-            <!-- Diskon -->
-            <div class="mb-3">
-                <div class="flex items-center gap-2">
-                    <label class="text-sm font-medium text-gray-700">🏷️ Diskon</label>
-                    <div class="flex-1 relative">
-                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">Rp</span>
-                        <input type="number" x-model.number="diskon" min="0" :max="cartTotal" placeholder="0"
-                               class="w-full pl-10 pr-3 py-2 border rounded-lg text-sm">
-                    </div>
-                    <button @click="diskon = 0" x-show="diskon > 0"
-                            class="px-2 py-2 text-xs text-red-500 hover:text-red-700">✕ Hapus</button>
-                </div>
-            </div>
-
             <!-- Total & Checkout -->
             <div class="bg-blue-50 rounded-lg p-4 mb-4">
                 <div class="flex justify-between items-center">
                     <span class="text-sm font-medium text-gray-700">Subtotal (<span x-text="cart.length"></span> item)</span>
-                    <span class="text-lg font-bold text-gray-600" x-text="'Rp ' + cartTotal.toLocaleString('id-ID')"></span>
+                    <span class="text-lg font-bold text-gray-600" x-text="'Rp ' + cartSubtotal.toLocaleString('id-ID')"></span>
                 </div>
-                <div x-show="diskon > 0" class="flex justify-between items-center mt-1">
-                    <span class="text-sm text-red-500">🏷️ Diskon</span>
-                    <span class="text-sm font-bold text-red-500" x-text="'- Rp ' + diskon.toLocaleString('id-ID')"></span>
+                <div x-show="totalDiskon > 0" class="flex justify-between items-center mt-1">
+                    <span class="text-sm text-orange-500">🏷️ Diskon Bottom</span>
+                    <span class="text-sm font-bold text-orange-500" x-text="'- Rp ' + totalDiskon.toLocaleString('id-ID')"></span>
                 </div>
-                <hr x-show="diskon > 0" class="my-2 border-blue-200">
+                <hr x-show="totalDiskon > 0" class="my-2 border-blue-200">
                 <div class="flex justify-between items-center">
                     <span class="text-sm font-bold text-gray-700">Total Bayar</span>
-                    <span class="text-xl font-bold text-blue-600" x-text="'Rp ' + finalTotal.toLocaleString('id-ID')"></span>
+                    <span class="text-xl font-bold text-blue-600" x-text="'Rp ' + cartTotal.toLocaleString('id-ID')"></span>
                 </div>
             </div>
 
@@ -329,14 +323,36 @@ function cartApp() {
         emailCustomer: '',
         metodeBayar: 'tunai',
         keterangan: '',
-        diskon: 0,
         loading: false,
         
-        get cartTotal() {
+        getItemTotal(index) {
+            const item = this.cart[index];
+            const harga = item.useBottom ? item.hargaBottom : item.harga;
+            return harga * item.jumlah;
+        },
+        
+        get cartSubtotal() {
             return this.cart.reduce((sum, item) => sum + (item.harga * item.jumlah), 0);
         },
-        get finalTotal() {
-            return Math.max(0, this.cartTotal - (this.diskon || 0));
+        
+        get totalDiskon() {
+            return this.cart.reduce((sum, item) => {
+                if (item.useBottom && item.hargaBottom > 0) {
+                    return sum + ((item.harga - item.hargaBottom) * item.jumlah);
+                }
+                return sum;
+            }, 0);
+        },
+        
+        get cartTotal() {
+            return this.cart.reduce((sum, item) => {
+                const harga = item.useBottom ? item.hargaBottom : item.harga;
+                return sum + (harga * item.jumlah);
+            }, 0);
+        },
+        
+        toggleBottom(index) {
+            this.cart[index].useBottom = !this.cart[index].useBottom;
         },
         
         async startBarcodeScan() {
@@ -460,6 +476,8 @@ function cartApp() {
                     nama: this.selectedProduk.nama,
                     harga: this.selectedProduk.harga_jual,
                     hargaModal: this.selectedProduk.harga_modal,
+                    hargaBottom: this.selectedProduk.harga_bottom || 0,
+                    useBottom: false,
                     jumlah: jumlah,
                     stok: this.selectedProduk.stok
                 });
@@ -503,7 +521,9 @@ function cartApp() {
                         items: this.cart.map(i => ({
                             produk_id: i.produkId,
                             jumlah: i.jumlah,
-                            harga: i.harga
+                            harga: i.useBottom ? i.hargaBottom : i.harga,
+                            harga_asli: i.harga,
+                            diskon_item: i.useBottom ? (i.harga - i.hargaBottom) * i.jumlah : 0
                         })),
                         metode_bayar: this.metodeBayar,
                         nama_customer: this.namaCustomer,
@@ -511,7 +531,7 @@ function cartApp() {
                         hp_customer: this.hpCustomer,
                         email_customer: this.emailCustomer,
                         keterangan: this.keterangan,
-                        diskon: this.diskon || 0,
+                        diskon: this.totalDiskon,
                         tempo_hari: 30
                     })
                 });
