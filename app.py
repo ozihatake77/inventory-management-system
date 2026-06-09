@@ -1178,7 +1178,7 @@ def stok_invoice(request: Request, mutasi_id: int, print: int = 0):
             {"label": "Jumlah", "value": f"{'+ ' if is_masuk else '- '}{mutasi['jumlah']} {mutasi['satuan'] or 'pcs'}", "color": "#16a34a" if is_masuk else "#dc2626"},
         ],
         "footer_note": "Simpan bukti ini sebagai arahan persediaan barang",
-        "printed_by": request.state.user.get("nama", "-"),
+        "printed_by": (request.state.user["nama"] or "-"),
         "printed_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "auto_print": print,
     })
@@ -1711,7 +1711,7 @@ def hutang_invoice(request: Request, pembayaran_id: int, print: int = 0):
             {"label": "Sisa Tagihan", "value": f"Rp {bayar['sisa_hutang']:,.0f}", "color": "#dc2626" if bayar['sisa_hutang'] > 0 else "#16a34a"},
         ],
         "footer_note": "Simpan bukti pembayaran ini sebagai arahan",
-        "printed_by": request.state.user.get("nama", "-"),
+        "printed_by": (request.state.user["nama"] or "-"),
         "printed_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "auto_print": print,
     })
