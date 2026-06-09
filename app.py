@@ -303,6 +303,8 @@ def init_db():
         except: pass
         try: db.execute("ALTER TABLE penjualan ADD COLUMN driver TEXT DEFAULT ''")
         except: pass
+        try: db.execute("ALTER TABLE stok_mutasi ADD COLUMN batch_id TEXT DEFAULT ''")
+        except: pass
         try: db.execute("ALTER TABLE pembayaran_hutang ADD COLUMN metode_bayar TEXT DEFAULT 'tunai'")
         except: pass
         try: db.execute("ALTER TABLE stok_opname ADD COLUMN session_id INTEGER")
@@ -1065,6 +1067,128 @@ def stok_masuk(request: Request, produk_id: int = Form(...), jumlah: int = Form(
         log_audit(db, request.state.user, "Stok Masuk", "stok", f"Produk ID {produk_id} +{jumlah}", request.client.host if request.client else "")
     check_low_stock()
     return RedirectResponse(f"/stok/invoice/{mutasi_id}?print=1", status_code=303)
+
+@app.post("/stok/masuk/checkout")
+@require_auth
+async def stok_masuk_checkout(request: Request):
+    """Process multi-item stok masuk via JSON"""
+    import uuid
+    user = request.state.user
+    data = await request.json()
+
+    items = data.get('items', [])
+    tipe_detail = data.get('tipe_detail', 'Pembelian')
+    keterangan = data.get('keterangan', tipe_detail)
+
+    if not items:
+        return {"success": False, "error": "Daftar kosong"}
+
+    batch_id = str(uuid.uuid4())[:8]
+    mutasi_ids = []
+
+    with get_db() as db:
+        for item in items:
+            produk_id = item['produk_id']
+            jumlah = item['jumlah']
+            harga_satuan = item.get('harga_satuan', 0)
+
+            produk = db.execute("SELECT * FROM produk WHERE id = ?", (produk_id,)).fetchone()
+            if not produk:
+                continue
+
+            # Update stock
+            db.execute("UPDATE produk SET stok = stok + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (jumlah, produk_id))
+
+            # Insert mutation
+            db.execute("""
+                INSERT INTO stok_mutasi (produk_id, tipe, jumlah, harga_satuan, user_id, keterangan, batch_id)
+                VALUES (?, 'masuk', ?, ?, ?, ?, ?)
+            """, (produk_id, jumlah, harga_satuan, user['id'], keterangan, batch_id))
+
+            mutasi_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+            mutasi_ids.append(mutasi_id)
+
+            # Update harga_modal if different
+            if harga_satuan > 0 and harga_satuan != produk['harga_modal']:
+                db.execute("""
+                    INSERT INTO riwayat_harga (produk_id, harga_modal_lama, harga_jual_lama, harga_modal_baru, harga_jual_baru, user_id)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (produk_id, produk['harga_modal'], produk['harga_jual'], harga_satuan, produk['harga_jual'], user['id']))
+                db.execute("UPDATE produk SET harga_modal = ? WHERE id = ?", (harga_satuan, produk_id))
+
+        log_audit(db, user, "Stok Masuk Multi", "stok",
+                  f"Batch {batch_id}: {len(items)} item ({keterangan})",
+                  request.client.host if request.client else "")
+
+    check_low_stock()
+    return {"success": True, "batch_id": batch_id, "mutasi_ids": mutasi_ids}
+
+@app.get("/stok/invoice_batch/{batch_id}", response_class=HTMLResponse)
+@require_auth
+def stok_invoice_batch(request: Request, batch_id: str, print: int = 0):
+    with get_db() as db:
+        mutasi_list = db.execute("""
+            SELECT m.*, p.nama as produk_nama, p.kode as produk_kode, p.satuan,
+                   u.nama as user_nama
+            FROM stok_mutasi m
+            JOIN produk p ON m.produk_id = p.id
+            LEFT JOIN users u ON m.user_id = u.id
+            WHERE m.batch_id = ?
+            ORDER BY m.id
+        """, (batch_id,)).fetchall()
+
+    if not mutasi_list:
+        return RedirectResponse("/stok/masuk", status_code=303)
+
+    # Detect tipe from first item
+    ket = mutasi_list[0]["keterangan"] or ""
+    is_retur = "Retur" in ket
+
+    table_items = []
+    total_nilai = 0
+    for m in mutasi_list:
+        nilai = (m["harga_satuan"] or 0) * m["jumlah"]
+        total_nilai += nilai
+        table_items.append({
+            "kode": m["produk_kode"] or "-",
+            "nama": m["produk_nama"],
+            "jumlah": f"+{m['jumlah']} {m['satuan'] or 'pcs'}",
+            "harga": f"Rp {m['harga_satuan']:,.0f}" if m["harga_satuan"] else "-",
+            "total": f"Rp {nilai:,.0f}" if m["harga_satuan"] else "-",
+        })
+
+    return templates.TemplateResponse(request, "invoice_universal.html", {
+        "request": request,
+        "user": request.state.user,
+        "title": "Bukti Retur Penjualan" if is_retur else "Bukti Stok Masuk",
+        "no_invoice": f"STK-MASUK-{batch_id}",
+        "tanggal": mutasi_list[0]["created_at"] or datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "badge_class": "badge-orange" if is_retur else "badge-green",
+        "badge_text": "↩️ RETUR PENJUALAN" if is_retur else "📥 STOK MASUK",
+        "info_label": "Jumlah Item",
+        "info_value": f"{len(mutasi_list)} produk",
+        "info_extra": f"Tipe: {'Retur Penjualan' if is_retur else 'Pembelian'}",
+        "detail_items": [
+            {"label": "Keterangan", "value": ket or "-"},
+            {"label": "Diproses oleh", "value": mutasi_list[0]["user_nama"] or "-"},
+        ],
+        "table_items": table_items,
+        "table_columns": [
+            {"key": "kode", "title": "Kode", "align": ""},
+            {"key": "nama", "title": "Produk", "align": ""},
+            {"key": "jumlah", "title": "Jumlah", "align": "text-center"},
+            {"key": "harga", "title": "Harga", "align": "text-right"},
+            {"key": "total", "title": "Total", "align": "text-right"},
+        ],
+        "total_rows": [
+            {"label": "Total Nilai Barang", "value": f"Rp {total_nilai:,.0f}", "color": "#16a34a"},
+            {"label": "Jumlah Item", "value": f"{len(mutasi_list)} produk", "color": "#2563eb"},
+        ],
+        "footer_note": "Simpan bukti ini sebagai arahan persediaan barang",
+        "printed_by": (user["nama"] or "-"),
+        "printed_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "auto_print": print,
+    })
 
 # ═══════════════════════════════════════════════════════════════════════
 # ROUTES: STOK KELUAR
