@@ -238,6 +238,11 @@
                     <input x-model="keterangan" placeholder="Catatan..." class="w-full px-3 py-2 border rounded-lg text-sm">
                 </div>
             </div>
+            <!-- Driver/Pengirim -->
+            <div class="mb-3">
+                <label class="block text-xs text-gray-500 mb-1">🚚 Pengirim / Driver</label>
+                <input x-model="driver" placeholder="Nama driver / pengirim..." class="w-full px-3 py-2 border rounded-lg text-sm">
+            </div>
             <!-- Tempo Duration (only when Tempo selected) -->
             <div x-show="metodeBayar === 'tempo'" x-transition class="mb-3">
                 <label class="block text-xs text-gray-500 mb-1">⏱️ Jatuh Tempo</label>
@@ -337,6 +342,7 @@ function cartApp() {
         metodeBayar: 'tunai',
         tempoHari: 30,
         keterangan: '',
+        driver: '',
         loading: false,
         
         getItemTotal(index) {
@@ -546,7 +552,8 @@ function cartApp() {
                         email_customer: this.emailCustomer,
                         keterangan: this.keterangan,
                         diskon: this.totalDiskon,
-                        tempo_hari: this.tempoHari
+                        tempo_hari: this.tempoHari,
+                        driver: this.driver
                     })
                 });
                 const result = await resp.json();

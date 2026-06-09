@@ -5,101 +5,169 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Invoice {{ pen.no_invoice or ('#' ~ pen.id) }} - Toko Elektronik</title>
     <style>
-        * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
-        body { padding: 40px; color: #1f2937; font-size: 14px; line-height: 1.6; }
+        * { font-family: 'Courier New', 'Consolas', monospace; margin: 0; padding: 0; box-sizing: border-box; }
+        body { padding: 30px 40px; color: #1a1a1a; font-size: 13px; line-height: 1.5; }
         @media print {
-            body { padding: 20px; }
+            body { padding: 15px 20px; }
             .no-print { display: none !important; }
         }
-        .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #2563eb; }
-        .header h1 { font-size: 24px; font-weight: bold; color: #1e3a8a; margin-bottom: 4px; }
-        .header p { color: #6b7280; font-size: 12px; }
-        .invoice-info { display: flex; justify-content: space-between; margin-bottom: 24px; }
-        .invoice-info div { flex: 1; }
-        .invoice-info .right { text-align: right; }
-        .label { font-size: 11px; color: #6b7280; text-transform: uppercase; margin-bottom: 2px; }
-        .value { font-weight: 600; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
-        thead { background: #f3f4f6; }
-        th { padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb; }
-        td { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; }
+
+        /* Header */
+        .header { display: flex; justify-content: space-between; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 12px; }
+        .header-left h1 { font-size: 20px; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; }
+        .header-left p { font-size: 11px; color: #444; }
+        .header-right { text-align: right; font-size: 12px; }
+        .header-right .row { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 2px; }
+        .header-right .label { color: #555; min-width: 80px; text-align: left; }
+        .header-right .value { font-weight: 600; text-align: left; }
+
+        /* Info Section */
+        .info-section { display: flex; justify-content: space-between; margin-bottom: 16px; }
+        .info-left { font-size: 12px; }
+        .info-left .row { margin-bottom: 2px; }
+        .info-left .label { color: #555; display: inline-block; min-width: 90px; }
+        .info-left .value { font-weight: 600; }
+        .info-right { text-align: right; font-size: 12px; }
+        .info-right .row { margin-bottom: 2px; }
+        .info-right .label { color: #555; display: inline-block; min-width: 80px; text-align: right; }
+        .info-right .value { font-weight: 600; }
+
+        /* Table */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+        thead { background: #e8e8e8; }
+        th { padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; border: 1px solid #999; }
+        td { padding: 6px 10px; border: 1px solid #ccc; font-size: 12px; }
         .text-right { text-align: right; }
         .text-center { text-align: center; }
-        .total-section { text-align: right; margin-top: 16px; }
-        .total-row { display: flex; justify-content: flex-end; gap: 40px; margin-bottom: 4px; }
-        .total-label { color: #6b7280; }
-        .total-value { font-weight: 600; }
-        .grand-total { font-size: 18px; color: #1e3a8a; border-top: 2px solid #2563eb; padding-top: 8px; margin-top: 8px; }
-        .footer { margin-top: 40px; text-align: center; color: #6b7280; font-size: 12px; border-top: 1px solid #e5e7eb; padding-top: 20px; }
-        .print-btn { position: fixed; bottom: 20px; right: 20px; padding: 12px 24px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .print-btn:hover { background: #1d4ed8; }
+        td.no-cell { text-align: center; width: 30px; }
+
+        /* Summary */
+        .summary-section { display: flex; justify-content: space-between; margin-top: 8px; }
+        .summary-left { font-size: 11px; color: #555; max-width: 55%; }
+        .summary-left .note-title { font-weight: 700; margin-bottom: 4px; color: #1a1a1a; }
+        .summary-left .note-line { margin-bottom: 2px; }
+        .summary-right { text-align: right; min-width: 280px; }
+        .summary-row { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 3px; font-size: 12px; }
+        .summary-row .s-label { color: #555; }
+        .summary-row .s-value { font-weight: 600; min-width: 130px; text-align: right; }
+        .summary-row.total { font-size: 15px; font-weight: 700; border-top: 2px solid #000; padding-top: 6px; margin-top: 6px; }
+        .summary-row.total .s-label { color: #000; }
+        .summary-row.total .s-value { color: #000; }
+
+        /* Footer */
+        .footer { margin-top: 30px; display: flex; justify-content: space-between; }
+        .footer-col { text-align: center; font-size: 11px; min-width: 120px; }
+        .footer-col .space { height: 50px; }
+        .footer-col .line { border-top: 1px solid #000; padding-top: 4px; }
+
+        /* Print Button */
+        .print-btn { position: fixed; bottom: 20px; right: 20px; padding: 12px 24px; background: #1a1a1a; color: white; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+        .print-btn:hover { background: #333; }
     </style>
 </head>
 <body>
+    <!-- Header -->
     <div class="header">
-        <h1>📦 Toko Elektronik</h1>
-        <p>Jl. Contoh No. 123, Kota, Provinsi | Telp: 0812-xxxx-xxxx</p>
+        <div class="header-left">
+            <h1>📦 Toko Elektronik</h1>
+            <p>Jl. Contoh No. 123, Kota, Provinsi</p>
+            <p>Telp: 0812-xxxx-xxxx</p>
+        </div>
+        <div class="header-right">
+            <div class="row"><span class="label">No Faktur</span><span class="value">: {{ pen.no_invoice or ('#' ~ pen.id) }}</span></div>
+            <div class="row"><span class="label">Tanggal</span><span class="value">: {{ pen.created_at|format_date }}</span></div>
+            <div class="row"><span class="label">Operator</span><span class="value">: {{ pen.user_nama or '-' }}</span></div>
+        </div>
     </div>
 
-    <div class="invoice-info">
-        <div>
-            <div class="label">Invoice</div>
-            <div class="value">{{ pen.no_invoice or ('#' ~ pen.id) }}</div>
-            <div style="margin-top: 8px;">
-                <div class="label">Tanggal</div>
-                <div class="value">{{ pen.created_at|format_date }}</div>
-            </div>
-        </div>
-        <div class="right">
-            <div class="label">Customer</div>
-            <div class="value">{{ pen.nama_customer or '-' }}</div>
+    <!-- Customer & Driver Info -->
+    <div class="info-section">
+        <div class="info-left">
+            <div class="row"><span class="label">Kepada Yth</span><span class="value">: {{ pen.nama_customer or '-' }}</span></div>
             {% if pen.alamat_customer %}
-            <div style="font-size: 12px; color: #6b7280;">{{ pen.alamat_customer }}</div>
+            <div class="row"><span class="label">Alamat</span><span class="value">: {{ pen.alamat_customer }}</span></div>
             {% endif %}
             {% if pen.hp_customer %}
-            <div style="font-size: 12px; color: #6b7280;">HP: {{ pen.hp_customer }}</div>
+            <div class="row"><span class="label">Telp/HP</span><span class="value">: {{ pen.hp_customer }}</span></div>
             {% endif %}
-            {% if pen.email_customer %}
-            <div style="font-size: 12px; color: #6b7280;">Email: {{ pen.email_customer }}</div>
+        </div>
+        <div class="info-right">
+            {% if pen.driver %}
+            <div class="row"><span class="label">Pengirim</span><span class="value">: {{ pen.driver }}</span></div>
             {% endif %}
+            <div class="row"><span class="label">Bayar</span><span class="value">: {{ pen.metode_bayar|capitalize if pen.metode_bayar else 'Tunai' }}</span></div>
         </div>
     </div>
 
+    <!-- Items Table -->
     <table>
         <thead>
             <tr>
-                <th>Produk</th>
-                <th class="text-center">Qty</th>
-                <th class="text-right">Harga</th>
-                <th class="text-right">Subtotal</th>
+                <th class="text-center" style="width:30px">NO</th>
+                <th>NAMA BARANG</th>
+                <th class="text-center" style="width:60px">QTY</th>
+                <th class="text-right" style="width:100px">HARGA</th>
+                <th class="text-center" style="width:50px">DISC%</th>
+                <th class="text-right" style="width:110px">SUBTOTAL</th>
             </tr>
         </thead>
         <tbody>
+            {% for item in items %}
             <tr>
-                <td>{{ pen.produk_nama }}</td>
-                <td class="text-center">{{ pen.jumlah }}</td>
-                <td class="text-right">{{ pen.harga_satuan|rupiah }}</td>
-                <td class="text-right">{{ pen.total|rupiah }}</td>
+                <td class="no-cell">{{ loop.index }}</td>
+                <td>{{ item.produk_nama }}</td>
+                <td class="text-center">{{ item.jumlah }} PCS</td>
+                <td class="text-right">{{ item.harga_satuan|rupiah }}</td>
+                <td class="text-center">{{ (item.diskon or 0)|string + '%' if item.diskon else '-' }}</td>
+                <td class="text-right">{{ item.total|rupiah }}</td>
             </tr>
+            {% endfor %}
         </tbody>
     </table>
 
-    <div class="total-section">
-        {% if pen.diskon and pen.diskon > 0 %}
-        <div class="total-row">
-            <span class="total-label">Diskon:</span>
-            <span class="total-value" style="color: #dc2626;">- {{ pen.diskon|rupiah }}</span>
+    <!-- Summary & Notes -->
+    <div class="summary-section">
+        <div class="summary-left">
+            <div class="note-title">Keterangan :</div>
+            {% if pen.keterangan %}
+            <div class="note-line">{{ pen.keterangan }}</div>
+            {% else %}
+            <div class="note-line">1. Barang yang sudah dibeli tidak dapat dikembalikan</div>
+            <div class="note-line">2. Pembayaran dapat ditransfer ke rekening bank</div>
+            {% endif %}
         </div>
-        {% endif %}
-        <div class="total-row grand-total">
-            <span class="total-label">Total:</span>
-            <span class="total-value">{{ pen.total|rupiah }}</span>
+        <div class="summary-right">
+            <div class="summary-row">
+                <span class="s-label">SubTotal Rp</span>
+                <span class="s-value">: {{ subtotal|rupiah }}</span>
+            </div>
+            {% if total_diskon > 0 %}
+            <div class="summary-row">
+                <span class="s-label">Discount Rp</span>
+                <span class="s-value">: {{ total_diskon|rupiah }}</span>
+            </div>
+            {% endif %}
+            <div class="summary-row total">
+                <span class="s-label">Total Rp</span>
+                <span class="s-value">: {{ grand_total|rupiah }}</span>
+            </div>
         </div>
     </div>
 
+    <!-- Signature Footer -->
     <div class="footer">
-        <p>Terima kasih atas pembelian Anda 🙏</p>
-        <p style="margin-top: 4px;">Barang yang sudah dibeli tidak dapat dikembalikan</p>
+        <div class="footer-col">
+            <div class="space"></div>
+            <div class="line">Pengirim</div>
+        </div>
+        <div class="footer-col">
+            <div class="space"></div>
+            <div class="line">Penerima</div>
+        </div>
+        <div class="footer-col">
+            <div class="space"></div>
+            <div class="line">Hormat Kami</div>
+        </div>
     </div>
 
     <button class="print-btn no-print" onclick="window.print()">🖨️ Cetak Invoice</button>

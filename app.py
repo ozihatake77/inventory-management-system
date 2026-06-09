@@ -301,6 +301,8 @@ def init_db():
         except: pass
         try: db.execute("ALTER TABLE penjualan ADD COLUMN no_invoice TEXT DEFAULT ''")
         except: pass
+        try: db.execute("ALTER TABLE penjualan ADD COLUMN driver TEXT DEFAULT ''")
+        except: pass
         try: db.execute("ALTER TABLE pembayaran_hutang ADD COLUMN metode_bayar TEXT DEFAULT 'tunai'")
         except: pass
         try: db.execute("ALTER TABLE stok_opname ADD COLUMN session_id INTEGER")
@@ -1319,7 +1321,8 @@ def penjualan_tambah(request: Request, produk_id: int = Form(...), jumlah: int =
                      nama_customer: str = Form("-"), alamat_customer: str = Form(""),
                      hp_customer: str = Form(""), email_customer: str = Form(""),
                      keterangan: str = Form(""), metode_bayar: str = Form("tunai"),
-                     approval_id: int = Form(0), tempo_hari: int = Form(30)):
+                     approval_id: int = Form(0), tempo_hari: int = Form(30),
+                     driver: str = Form("")):
     with get_db() as db:
         produk = db.execute("SELECT * FROM produk WHERE id = ?", (produk_id,)).fetchone()
         if produk["stok"] < jumlah:
@@ -1332,11 +1335,11 @@ def penjualan_tambah(request: Request, produk_id: int = Form(...), jumlah: int =
 
         db.execute("""
             INSERT INTO penjualan (user_id, produk_id, jumlah, harga_satuan, harga_modal, total, keuntungan,
-                                   keterangan, nama_customer, alamat_customer, hp_customer, email_customer, approval_id, metode_bayar, no_invoice)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   keterangan, nama_customer, alamat_customer, hp_customer, email_customer, approval_id, metode_bayar, no_invoice, driver)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (request.state.user["id"], produk_id, jumlah, harga, produk["harga_modal"], total, keuntungan,
               keterangan, nama_customer, alamat_customer, hp_customer, email_customer,
-              approval_id if approval_id else None, metode_bayar, no_invoice))
+              approval_id if approval_id else None, metode_bayar, no_invoice, driver))
 
         db.execute("UPDATE produk SET stok = stok - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (jumlah, produk_id))
 
@@ -1397,6 +1400,7 @@ async def penjualan_checkout(request: Request):
     keterangan = data.get('keterangan', '')
     diskon = data.get('diskon', 0)
     tempo_hari = data.get('tempo_hari', 30)
+    driver = data.get('driver', '')
     
     if not items:
         return {"success": False, "error": "Keranjang kosong"}
@@ -1424,11 +1428,11 @@ async def penjualan_checkout(request: Request):
             db.execute("""
                 INSERT INTO penjualan (user_id, produk_id, jumlah, harga_satuan, harga_modal, total, keuntungan,
                                        keterangan, nama_customer, alamat_customer, hp_customer, email_customer,
-                                       metode_bayar, diskon, batch_id, status, no_invoice)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+                                       metode_bayar, diskon, batch_id, status, no_invoice, driver)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
             """, (user['id'], produk_id, jumlah, harga, produk['harga_modal'], total, keuntungan,
                   keterangan, nama_customer, alamat_customer, hp_customer, email_customer,
-                  metode_bayar, item_diskon, batch_id, no_invoice))
+                  metode_bayar, item_diskon, batch_id, no_invoice, driver))
             
             pen_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
             nota_ids.append(pen_id)
@@ -1472,8 +1476,31 @@ def nota_page(request: Request, id: int, print: int = 0):
             LEFT JOIN users u ON pen.user_id = u.id
             WHERE pen.id = ?
         """, (id,)).fetchone()
+        
+        # For batch: fetch all items with same batch_id
+        items = []
+        if pen and pen["batch_id"]:
+            items = db.execute("""
+                SELECT pen.*, pr.nama as produk_nama, pr.kode as produk_kode,
+                       u.nama as user_nama
+                FROM penjualan pen JOIN produk pr ON pen.produk_id = pr.id
+                LEFT JOIN users u ON pen.user_id = u.id
+                WHERE pen.batch_id = ? AND pen.status = 'active'
+                ORDER BY pen.id ASC
+            """, (pen["batch_id"],)).fetchall()
+        else:
+            # Single item - wrap in list for consistent template
+            items = [pen] if pen else []
+        
+        # Calculate totals
+        subtotal = sum(i["harga_satuan"] * i["jumlah"] for i in items if i)
+        total_diskon = sum(i["diskon"] or 0 for i in items if i)
+        grand_total = sum(i["total"] for i in items if i)
+    
     return templates.TemplateResponse(request, "invoice.html", {
-        "request": request, "user": request.state.user, "pen": pen, "auto_print": print
+        "request": request, "user": request.state.user, "pen": pen, "items": items,
+        "subtotal": subtotal, "total_diskon": total_diskon, "grand_total": grand_total,
+        "auto_print": print
     })
 
 @app.post("/penjualan/void/{id}")
