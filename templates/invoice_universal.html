@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - Toko Elektronik</title>
+    <style>
+        * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+        body { padding: 40px; color: #1f2937; font-size: 14px; line-height: 1.6; }
+        @media print {
+            body { padding: 20px; }
+            .no-print { display: none !important; }
+        }
+        .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #2563eb; }
+        .header h1 { font-size: 24px; font-weight: bold; color: #1e3a8a; margin-bottom: 4px; }
+        .header p { color: #6b7280; font-size: 12px; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-top: 8px; }
+        .badge-green { background: #dcfce7; color: #166534; }
+        .badge-blue { background: #dbeafe; color: #1e40af; }
+        .badge-orange { background: #ffedd5; color: #9a3412; }
+        .badge-red { background: #fee2e2; color: #991b1b; }
+        .info-row { display: flex; justify-content: space-between; margin-bottom: 24px; }
+        .info-row div { flex: 1; }
+        .info-row .right { text-align: right; }
+        .label { font-size: 11px; color: #6b7280; text-transform: uppercase; margin-bottom: 2px; }
+        .value { font-weight: 600; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+        thead { background: #f3f4f6; }
+        th { padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb; }
+        td { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .total-section { text-align: right; margin-top: 16px; }
+        .total-row { display: flex; justify-content: flex-end; gap: 40px; margin-bottom: 4px; }
+        .total-label { color: #6b7280; }
+        .total-value { font-weight: 600; }
+        .grand-total { font-size: 18px; color: #1e3a8a; border-top: 2px solid #2563eb; padding-top: 8px; margin-top: 8px; }
+        .footer { margin-top: 40px; text-align: center; color: #6b7280; font-size: 12px; border-top: 1px solid #e5e7eb; padding-top: 20px; }
+        .print-btn { position: fixed; bottom: 20px; right: 20px; padding: 12px 24px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .print-btn:hover { background: #1d4ed8; }
+        .detail-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 24px; }
+        .detail-box .row { display: flex; justify-content: space-between; padding: 6px 0; }
+        .detail-box .row:not(:last-child) { border-bottom: 1px solid #f3f4f6; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📦 Toko Elektronik</h1>
+        <p>Jl. Contoh No. 123, Kota, Provinsi | Telp: 0812-xxxx-xxxx</p>
+        <div class="badge {{ badge_class }}">{{ badge_text }}</div>
+    </div>
+
+    <div class="info-row">
+        <div>
+            <div class="label">No. Invoice</div>
+            <div class="value">{{ no_invoice }}</div>
+            <div style="margin-top: 8px;">
+                <div class="label">Tanggal</div>
+                <div class="value">{{ tanggal }}</div>
+            </div>
+        </div>
+        <div class="right">
+            <div class="label">{{ info_label }}</div>
+            <div class="value">{{ info_value }}</div>
+            {% if info_extra %}
+            <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">{{ info_extra }}</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="detail-box">
+        {% for item in detail_items %}
+        <div class="row">
+            <span style="color: #6b7280;">{{ item.label }}</span>
+            <span style="font-weight: 600;">{{ item.value }}</span>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if table_items %}
+    <table>
+        <thead>
+            <tr>
+                {% for col in table_columns %}
+                <th class="{{ col.align }}">{{ col.title }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in table_items %}
+            <tr>
+                {% for col in table_columns %}
+                <td class="{{ col.align }}">{{ row[col.key] }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <div class="total-section">
+        {% for t in total_rows %}
+        <div class="total-row" {% if t.highlight %}class="grand-total"{% endif %}>
+            <span class="total-label">{{ t.label }}</span>
+            <span class="total-value" style="color: {{ t.color }};">{{ t.value }}</span>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="footer">
+        <p>Terima kasih 🙏</p>
+        <p style="margin-top: 4px;">{{ footer_note }}</p>
+        <p style="margin-top: 8px; font-size: 10px; color: #9ca3af;">Dicetak oleh: {{ printed_by }} | {{ printed_at }}</p>
+    </div>
+
+    <button class="print-btn no-print" onclick="window.print()">🖨️ Cetak Invoice</button>
+
+    {% if auto_print %}
+    <script>
+        window.onload = function() { window.print(); };
+    </script>
+    {% endif %}
+</body>
+</html>

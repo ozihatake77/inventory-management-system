@@ -167,6 +167,7 @@ def init_db():
             hutang_id INTEGER NOT NULL,
             jumlah REAL NOT NULL,
             user_id INTEGER,
+            metode_bayar TEXT DEFAULT 'tunai',
             keterangan TEXT DEFAULT '',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (hutang_id) REFERENCES hutang(id) ON DELETE CASCADE,
@@ -1521,30 +1522,37 @@ def hutang_page(request: Request, status: str = "semua"):
 @app.post("/hutang/bayar")
 @require_auth
 def hutang_bayar(request: Request, hutang_id: int = Form(...), jumlah: float = Form(...),
-                 metode_bayar: str = Form("tunai"), keterangan: str = Form("")):
-    with get_db() as db:
-        hutang = db.execute("SELECT * FROM hutang WHERE id=?", (hutang_id,)).fetchone()
-        if not hutang:
-            return RedirectResponse("/hutang", status_code=303)
-        sisa_baru = hutang["sisa"] - jumlah
-        sudah_baru = hutang["sudah_bayar"] + jumlah
-        if sisa_baru <= 0:
-            status = "lunas"
-            sisa_baru = 0
-        elif sudah_baru > 0:
-            status = "sebagian"
-        else:
-            status = "belum"
+                 metode_bayar: str = Form("tunai"), tanggal: str = Form(""), keterangan: str = Form("")):
+    try:
+        with get_db() as db:
+            hutang = db.execute("SELECT * FROM hutang WHERE id=?", (hutang_id,)).fetchone()
+            if not hutang:
+                return RedirectResponse("/hutang", status_code=303)
+            sisa_baru = hutang["sisa"] - jumlah
+            sudah_baru = hutang["sudah_bayar"] + jumlah
+            if sisa_baru <= 0:
+                status = "lunas"
+                sisa_baru = 0
+            elif sudah_baru > 0:
+                status = "sebagian"
+            else:
+                status = "belum"
 
-        db.execute("UPDATE hutang SET sudah_bayar=?, sisa=?, status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-                   (sudah_baru, sisa_baru, status, hutang_id))
-        db.execute("INSERT INTO pembayaran_hutang (hutang_id, jumlah, user_id, metode_bayar, keterangan) VALUES (?, ?, ?, ?, ?)",
-                   (hutang_id, jumlah, request.state.user["id"], metode_bayar, keterangan))
-        log_audit(db, request.state.user, "Bayar Hutang", "hutang",
-                  f"Bayar Rp {jumlah:,.0f} ({metode_bayar}) - sisa Rp {sisa_baru:,.0f}",
-                  request.client.host)
+            db.execute("UPDATE hutang SET sudah_bayar=?, sisa=?, status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                       (sudah_baru, sisa_baru, status, hutang_id))
+            db.execute("INSERT INTO pembayaran_hutang (hutang_id, jumlah, user_id, metode_bayar, keterangan) VALUES (?, ?, ?, ?, ?)",
+                       (hutang_id, jumlah, request.state.user["id"], metode_bayar, keterangan))
+            log_audit(db, request.state.user, "Bayar Hutang", "hutang",
+                      f"Bayar Rp {jumlah:,.0f} ({metode_bayar}) - sisa Rp {sisa_baru:,.0f}",
+                      request.client.host if request.client else "")
 
-    return RedirectResponse("/hutang", status_code=303)
+            # Get payment ID for invoice
+            pembayaran_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        # Redirect to invoice page
+        return RedirectResponse(f"/hutang/invoice/{pembayaran_id}", status_code=303)
+    except Exception as e:
+        return RedirectResponse("/hutang", status_code=303)
 
 @app.get("/hutang/riwayat/{hutang_id}")
 @require_auth
@@ -1567,7 +1575,61 @@ def hutang_riwayat(request: Request, hutang_id: int):
     return {"hutang": dict(hutang) if hutang else None,
             "riwayat": [dict(r) for r in riwayat]}
 
-# ═══════════════════════════════════════════════════════════════════════
+@app.get("/hutang/invoice/{pembayaran_id}", response_class=HTMLResponse)
+@require_auth
+def hutang_invoice(request: Request, pembayaran_id: int, print: int = 0):
+    with get_db() as db:
+        bayar = db.execute("""
+            SELECT ph.*, h.jumlah as hutang_total, h.sudah_bayar, h.sisa as sisa_hutang,
+                   h.status as hutang_status, h.jatuh_tempo,
+                   COALESCE(p.nama, pen.nama_customer, '-') as pelanggan_nama,
+                   p.telepon as pelanggan_telp, p.alamat as pelanggan_alamat,
+                   u.nama as user_nama
+            FROM pembayaran_hutang ph
+            JOIN hutang h ON ph.hutang_id = h.id
+            LEFT JOIN pelanggan p ON h.pelanggan_id = p.id
+            LEFT JOIN penjualan pen ON h.penjualan_id = pen.id
+            LEFT JOIN users u ON ph.user_id = u.id
+            WHERE ph.id = ?
+        """, (pembayaran_id,)).fetchone()
+
+    if not bayar:
+        return RedirectResponse("/hutang", status_code=303)
+
+    is_lunas = bayar["hutang_status"] == "lunas"
+    metode = "Transfer" if bayar["metode_bayar"] == "transfer" else "Tunai"
+
+    return templates.TemplateResponse(request, "invoice_universal.html", {
+        "request": request,
+        "user": request.state.user,
+        "title": "Bukti Pembayaran Hutang",
+        "no_invoice": f"PAY-{pembayaran_id:06d}",
+        "tanggal": bayar["created_at"] or datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "badge_class": "badge-green" if is_lunas else "badge-orange",
+        "badge_text": "✅ LUNAS" if is_lunas else "⏳ CICILAN",
+        "info_label": "Pelanggan",
+        "info_value": bayar["pelanggan_nama"],
+        "info_extra": f"Telp: {bayar['pelanggan_telp']}" if bayar["pelanggan_telp"] else "",
+        "detail_items": [
+            {"label": "Total Tagihan", "value": f"Rp {bayar['hutang_total']:,.0f}"},
+            {"label": "Jumlah Bayar", "value": f"Rp {bayar['jumlah']:,.0f}"},
+            {"label": "Metode Bayar", "value": f"{'🏦' if bayar['metode_bayar'] == 'transfer' else '💵'} {metode}"},
+            {"label": "Sisa Tagihan", "value": f"Rp {bayar['sisa_hutang']:,.0f}"},
+            {"label": "Jatuh Tempo", "value": bayar["jatuh_tempo"] or "-"},
+            {"label": "Diproses oleh", "value": bayar["user_nama"] or "-"},
+        ],
+        "table_items": [],
+        "table_columns": [],
+        "total_rows": [
+            {"label": "Dibayar Sekarang", "value": f"Rp {bayar['jumlah']:,.0f}", "color": "#16a34a"},
+            {"label": "Total Sudah Dibayar", "value": f"Rp {bayar['sudah_bayar']:,.0f}", "color": "#2563eb"},
+            {"label": "Sisa Tagihan", "value": f"Rp {bayar['sisa_hutang']:,.0f}", "color": "#dc2626" if bayar['sisa_hutang'] > 0 else "#16a34a"},
+        ],
+        "footer_note": "Simpan bukti pembayaran ini sebagai arahan",
+        "printed_by": request.state.user.get("nama", "-"),
+        "printed_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "auto_print": print,
+    })
 # ROUTES: STOK OPNAME (Full Version - Session-based)
 # ═══════════════════════════════════════════════════════════════════════
 
