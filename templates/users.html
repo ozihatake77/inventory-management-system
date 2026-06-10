@@ -70,7 +70,7 @@
                             <button onclick="editUser({{ u.id }}, '{{ u.nama }}', '{{ u.role }}', {{ u.aktif }})"
                                     class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs hover:bg-yellow-200">✏️</button>
                             {% endif %}
-                            {% if u.role not in ['bos', 'master'] %}
+                            {% if u.role != 'master' %}
                             <button onclick="openPermissions({{ u.id }}, '{{ u.nama }}', '{{ u.role }}', {{ u.id }})"
                                     class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs hover:bg-purple-200">🔒</button>
                             {% endif %}

@@ -49,9 +49,7 @@ def template_has_permission(user, feature):
         toggle = db.execute("SELECT enabled FROM feature_toggles WHERE feature_key=?", (feature,)).fetchone()
         if toggle and not toggle["enabled"]:
             return False
-        # Bos always has access to enabled features
-        if user["role"] == "bos":
-            return True
+        # Check user-specific permissions (including BOS)
         return has_permission(db, user, feature)
 
 templates.env.globals["has_perm"] = template_has_permission
@@ -934,9 +932,7 @@ def has_permission(db, user, feature):
     toggle = db.execute("SELECT enabled FROM feature_toggles WHERE feature_key=?", (feature,)).fetchone()
     if toggle and not toggle["enabled"]:
         return False
-    # Bos always has access to enabled features
-    if user["role"] == "bos":
-        return True
+    # Check user-specific permissions (including BOS)
     perms = get_user_permissions(db, user["id"])
     if not perms:
         defaults = ROLE_DEFAULTS.get(user["role"], {})
@@ -3973,7 +3969,7 @@ async def save_permissions(request: Request, user_id: int):
     form = await request.form()
     with get_db() as db:
         target = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-        if not target or target["role"] == "bos":
+        if not target or target["role"] == "master":
             return RedirectResponse("/users", status_code=303)
         # Only update features present in form, keep the rest unchanged
         form_features = set()
