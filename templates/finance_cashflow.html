@@ -3,6 +3,19 @@
 {% block header %}📈 Cash Flow{% endblock %}
 
 {% block content %}
+<!-- Print Header (only visible when printing) -->
+<div class="print-header">
+    <h1>{{ nama_toko or 'Toko Elektronik Rumah Tangga' }}</h1>
+    <p>{{ alamat_toko or '' }}</p>
+    <p>Telp: {{ telepon_toko or '-' }} | Email: {{ email_toko or '-' }}</p>
+    <p style="margin-top:3mm; font-size:14pt; font-weight:bold;">LAPORAN CASH FLOW</p>
+</div>
+
+<div class="print-filter-info">
+    <strong>Periode:</strong> {{ bulan_nama }} ({{ bulan }})
+    | Dicetak: {{ now }}
+</div>
+
 <!-- Month Selector -->
 <div class="bg-white rounded-xl shadow-sm border p-4 mb-4">
     <div class="flex items-center justify-between">
@@ -241,5 +254,11 @@ new Chart(ctx, {
     }
 });
 </script>
+
+<!-- Print Footer (only visible when printing) -->
+<div class="print-footer">
+    <p>Dicetak oleh: {{ user.nama }} ({{ user.role|upper }}) | {{ now }}</p>
+    <p>{{ nama_toko or 'Toko Elektronik Rumah Tangga' }} — Sistem Manajemen Stok</p>
+</div>
 {% endblock %}
 {% endblock %}
