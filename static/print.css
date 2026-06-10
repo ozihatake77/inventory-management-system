@@ -4,7 +4,7 @@
 
 @media print {
     /* Hide all non-print elements */
-    .no-print, aside, header, footer, .custom-scroll, .main-scroll,
+    .no-print, aside, header, footer, .custom-scroll,
     button, .bg-black\/50, nav, .sidebar, .print-hide {
         display: none !important;
     }
@@ -26,10 +26,11 @@
         overflow: visible !important;
     }
 
-    main {
+    main, .main-scroll {
         overflow: visible !important;
         padding: 15mm !important;
         height: auto !important;
+        display: block !important;
     }
 
     /* Print header - store info */
