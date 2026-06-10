@@ -2511,6 +2511,30 @@ def opname_buat_baru(request: Request, catatan: str = Form(""), kategori_id: str
 
     return RedirectResponse(f"/opname/{session_id}", status_code=303)
 
+@app.get("/opname/riwayat", response_class=HTMLResponse)
+@require_auth
+def opname_riwayat(request: Request, tgl_dari: str = "", tgl_sampai: str = ""):
+    """Riwayat semua stok opname"""
+    with get_db() as db:
+        where = "1=1"
+        params = []
+        if tgl_dari:
+            where += " AND DATE(o.created_at) >= ?"
+            params.append(tgl_dari)
+        if tgl_sampai:
+            where += " AND DATE(o.created_at) <= ?"
+            params.append(tgl_sampai)
+        riwayat = db.execute(f"""
+            SELECT o.*, p.nama as produk_nama, p.kode as produk_kode, u.nama as user_nama
+            FROM stok_opname o JOIN produk p ON o.produk_id = p.id
+            LEFT JOIN users u ON o.user_id = u.id
+            WHERE {where} ORDER BY o.created_at DESC LIMIT 100
+        """, params).fetchall()
+    return templates.TemplateResponse(request, "opname_riwayat.html", {
+        "request": request, "user": request.state.user, "riwayat": riwayat,
+        "tgl_dari": tgl_dari, "tgl_sampai": tgl_sampai,
+    })
+
 @app.get("/opname/{session_id}", response_class=HTMLResponse)
 @require_auth
 def opname_detail(request: Request, session_id: int, kategori: str = ""):
@@ -2673,29 +2697,6 @@ def opname_print(request: Request, session_id: int, mode: str = "blank"):
         "items": items, "mode": mode, "user_nama": user_info["nama"] if user_info else "-",
     })
 
-@app.get("/opname/riwayat", response_class=HTMLResponse)
-@require_auth
-def opname_riwayat(request: Request, tgl_dari: str = "", tgl_sampai: str = ""):
-    """Riwayat semua stok opname"""
-    with get_db() as db:
-        where = "1=1"
-        params = []
-        if tgl_dari:
-            where += " AND DATE(o.created_at) >= ?"
-            params.append(tgl_dari)
-        if tgl_sampai:
-            where += " AND DATE(o.created_at) <= ?"
-            params.append(tgl_sampai)
-        riwayat = db.execute(f"""
-            SELECT o.*, p.nama as produk_nama, p.kode as produk_kode, u.nama as user_nama
-            FROM stok_opname o JOIN produk p ON o.produk_id = p.id
-            LEFT JOIN users u ON o.user_id = u.id
-            WHERE {where} ORDER BY o.created_at DESC LIMIT 100
-        """, params).fetchall()
-    return templates.TemplateResponse(request, "opname_riwayat.html", {
-        "request": request, "user": request.state.user, "riwayat": riwayat,
-        "tgl_dari": tgl_dari, "tgl_sampai": tgl_sampai,
-    })
 
 # ═══════════════════════════════════════════════════════════════════════
 # ROUTES: LAPORAN
