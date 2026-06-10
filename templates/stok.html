@@ -26,7 +26,7 @@
 </div>
 
 <!-- Search & Filter Bar -->
-<div class="bg-white rounded-xl shadow-sm border p-5 mb-6">
+<div class="bg-white rounded-xl shadow-sm border p-5 mb-6 no-print">
     <form method="get" action="/stok" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <!-- Search by name -->
         <div>
@@ -72,7 +72,7 @@
 </div>
 
 <!-- Summary Cards -->
-<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 no-print">
     <div class="bg-white rounded-xl shadow-sm border p-4">
         <p class="text-xs text-gray-500 mb-1">Total Barang</p>
         <p class="text-2xl font-bold text-gray-800">{{ stok_data|length }}</p>
