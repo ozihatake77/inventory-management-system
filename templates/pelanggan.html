@@ -156,7 +156,7 @@ function showRiwayat(id, nama) {
             return res.json();
         })
         .then(data => {
-            if (!data || data.length === 0) {
+            if (!data || !data.found || !data.riwayat || data.riwayat.length === 0) {
                 document.getElementById('riwayatContent').innerHTML = `
                     <div class="text-center py-8 text-gray-400">
                         <p class="text-3xl mb-2">📭</p>
@@ -164,18 +164,25 @@ function showRiwayat(id, nama) {
                     </div>`;
                 return;
             }
-            let html = `<div class="space-y-3">`;
-            data.forEach(item => {
+            let html = `
+                <div class="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <div><span class="text-gray-500">Total Belanja:</span> <span class="font-semibold text-green-600">Rp ${Number(data.total_belanja || 0).toLocaleString('id-ID')}</span></div>
+                        <div><span class="text-gray-500">Hutang Aktif:</span> <span class="font-semibold ${data.hutang_aktif > 0 ? 'text-red-600' : 'text-gray-600'}">Rp ${Number(data.hutang_aktif || 0).toLocaleString('id-ID')}</span></div>
+                    </div>
+                </div>
+                <div class="space-y-3">`;
+            data.riwayat.forEach(item => {
                 html += `
                     <div class="bg-gray-50 rounded-lg p-3 border">
                         <div class="flex justify-between items-start">
                             <div>
-                                <p class="font-medium text-gray-800">${item.produk_nama || item.nama_produk || item.nama || '-'}</p>
-                                <p class="text-xs text-gray-500">${item.tanggal || item.tanggal_transaksi || '-'}</p>
+                                <p class="font-medium text-gray-800">${item.produk || '-'}</p>
+                                <p class="text-xs text-gray-500">${item.tanggal || '-'}</p>
                             </div>
                             <div class="text-right">
-                                <p class="font-semibold text-green-600">Rp ${Number(item.total || item.jumlah || 0).toLocaleString('id-ID')}</p>
-                                <p class="text-xs text-gray-500">${item.jumlah_item || item.qty || ''} item</p>
+                                <p class="font-semibold text-green-600">Rp ${Number(item.total || 0).toLocaleString('id-ID')}</p>
+                                <p class="text-xs text-gray-500">${item.jumlah || 0} item • ${item.metode || 'tunai'}</p>
                             </div>
                         </div>
                     </div>`;
