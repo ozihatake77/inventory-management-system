@@ -34,6 +34,7 @@
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Produk</th>
                     <th class="px-4 py-3 text-center font-medium text-gray-600">Jumlah</th>
                     <th class="px-4 py-3 text-right font-medium text-gray-600">Harga</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">Supplier</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Tipe</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Keterangan</th>
                     <th class="px-4 py-3 text-center font-medium text-gray-600">Invoice</th>
@@ -55,6 +56,7 @@
                     </td>
                     <td class="px-4 py-3 text-center text-red-600 font-medium">-{{ m.jumlah }}</td>
                     <td class="px-4 py-3 text-right">{{ m.harga_satuan|rupiah }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600">{{ m.supplier_nama or '-' }}</td>
                     <td class="px-4 py-3">
                         {% if m.keterangan and 'Retur' in m.keterangan %}
                         <span class="inline-block px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full font-medium">↩️ Retur</span>
@@ -118,6 +120,17 @@
                         📋 Lainnya
                     </button>
                 </div>
+            </div>
+
+            <!-- Supplier Selection -->
+            <div class="mb-4">
+                <label class="block text-xs text-gray-500 mb-1">🏭 Supplier / Distributor</label>
+                <select x-model="supplierId" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+                    <option value="">-- Pilih Supplier --</option>
+                    {% for s in suppliers %}
+                    <option value="{{ s.id }}">{{ s.nama }}</option>
+                    {% endfor %}
+                </select>
             </div>
 
             <!-- Add Product Section -->
@@ -259,6 +272,7 @@ function keluarApp() {
         inputJumlah: 1,
         inputHarga: 0,
         tipeDetail: 'Retur ke Supplier',
+        supplierId: '',
         keterangan: '',
         loading: false,
 
@@ -348,13 +362,14 @@ function keluarApp() {
                             harga_satuan: i.harga
                         })),
                         tipe_detail: this.tipeDetail,
-                        keterangan: ketFinal
+                        keterangan: ketFinal,
+                        supplier_id: this.supplierId ? parseInt(this.supplierId) : null
                     })
                 });
                 const result = await resp.json();
                 if (result.success) {
-                    window.open('/stok/invoice_batch/' + result.batch_id + '?print=1', '_blank');
-                    window.location.reload();
+                    printPopup('/stok/invoice_batch/' + result.batch_id + '?print=1');
+                    setTimeout(() => window.location.reload(), 500);
                 } else {
                     alert('Error: ' + (result.error || 'Gagal memproses'));
                 }

@@ -120,9 +120,11 @@ def init_db():
             harga_satuan REAL,
             user_id INTEGER,
             keterangan TEXT,
+            supplier_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (produk_id) REFERENCES produk(id) ON DELETE CASCADE,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY (supplier_id) REFERENCES supplier(id) ON DELETE SET NULL
         );
 
         CREATE TABLE IF NOT EXISTS stok_opname (
@@ -551,6 +553,7 @@ def init_db():
         try: db.execute("ALTER TABLE pembayaran_hutang ADD COLUMN metode_bayar TEXT DEFAULT 'tunai'")
         except: pass
         try: db.execute("ALTER TABLE stok_opname ADD COLUMN session_id INTEGER")
+        try: db.execute("ALTER TABLE stok_mutasi ADD COLUMN supplier_id INTEGER REFERENCES supplier(id) ON DELETE SET NULL")
         except: pass
         # Init permissions for existing users who don't have any
         try:
@@ -1423,29 +1426,32 @@ def stok_masuk_page(request: Request, tgl_dari: str = "", tgl_sampai: str = ""):
             where += " AND DATE(m.created_at) <= ?"
             params.append(tgl_sampai)
         mutasi = db.execute(f"""
-            SELECT m.*, p.nama as produk_nama, p.kode as produk_kode, u.nama as user_nama
+            SELECT m.*, p.nama as produk_nama, p.kode as produk_kode, u.nama as user_nama,
+                   s.nama as supplier_nama
             FROM stok_mutasi m JOIN produk p ON m.produk_id = p.id
             LEFT JOIN users u ON m.user_id = u.id
+            LEFT JOIN supplier s ON m.supplier_id = s.id
             WHERE {where} ORDER BY m.created_at DESC LIMIT 50
         """, params).fetchall()
+        suppliers = db.execute("SELECT id, nama FROM supplier WHERE aktif=1 ORDER BY nama").fetchall()
     return templates.TemplateResponse(request, "stok_masuk.html", {
         "request": request, "user": request.state.user, "produk": produk, "mutasi": mutasi,
-        "tgl_dari": tgl_dari, "tgl_sampai": tgl_sampai,
+        "tgl_dari": tgl_dari, "tgl_sampai": tgl_sampai, "suppliers": suppliers,
     })
 
 @app.post("/stok/masuk")
 @require_auth
 def stok_masuk(request: Request, produk_id: int = Form(...), jumlah: int = Form(...),
                harga_satuan: float = Form(0), keterangan: str = Form(""),
-               tipe_detail: str = Form("Pembelian")):
+               tipe_detail: str = Form("Pembelian"), supplier_id: int = Form(0))
     # Prepend tipe_detail to keterangan for badge detection
     ket_final = f"{tipe_detail}" + (f" - {keterangan}" if keterangan else "")
     with get_db() as db:
         db.execute("UPDATE produk SET stok = stok + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (jumlah, produk_id))
         db.execute("""
-            INSERT INTO stok_mutasi (produk_id, tipe, jumlah, harga_satuan, user_id, keterangan)
-            VALUES (?, 'masuk', ?, ?, ?, ?)
-        """, (produk_id, jumlah, harga_satuan, request.state.user["id"], ket_final))
+            INSERT INTO stok_mutasi (produk_id, tipe, jumlah, harga_satuan, user_id, keterangan, supplier_id)
+            VALUES (?, 'masuk', ?, ?, ?, ?, ?)
+        """, (produk_id, jumlah, harga_satuan, request.state.user["id"], ket_final, supplier_id or None))
         mutasi_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
         if harga_satuan > 0:
             old = db.execute("SELECT * FROM produk WHERE id=?", (produk_id,)).fetchone()
@@ -1470,6 +1476,7 @@ async def stok_masuk_checkout(request: Request):
     items = data.get('items', [])
     tipe_detail = data.get('tipe_detail', 'Pembelian')
     keterangan = data.get('keterangan', tipe_detail)
+    supplier_id = data.get('supplier_id') or None
 
     if not items:
         return {"success": False, "error": "Daftar kosong"}
@@ -1492,9 +1499,9 @@ async def stok_masuk_checkout(request: Request):
 
             # Insert mutation
             db.execute("""
-                INSERT INTO stok_mutasi (produk_id, tipe, jumlah, harga_satuan, user_id, keterangan, batch_id)
-                VALUES (?, 'masuk', ?, ?, ?, ?, ?)
-            """, (produk_id, jumlah, harga_satuan, user['id'], keterangan, batch_id))
+                INSERT INTO stok_mutasi (produk_id, tipe, jumlah, harga_satuan, user_id, keterangan, batch_id, supplier_id)
+                VALUES (?, 'masuk', ?, ?, ?, ?, ?, ?)
+            """, (produk_id, jumlah, harga_satuan, user['id'], keterangan, batch_id, supplier_id))
 
             mutasi_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
             mutasi_ids.append(mutasi_id)
@@ -1520,10 +1527,11 @@ def stok_invoice_batch(request: Request, batch_id: str, print: int = 0):
     with get_db() as db:
         mutasi_list = db.execute("""
             SELECT m.*, p.nama as produk_nama, p.kode as produk_kode, p.satuan,
-                   u.nama as user_nama
+                   u.nama as user_nama, s.nama as supplier_nama
             FROM stok_mutasi m
             JOIN produk p ON m.produk_id = p.id
             LEFT JOIN users u ON m.user_id = u.id
+            LEFT JOIN supplier s ON m.supplier_id = s.id
             WHERE m.batch_id = ?
             ORDER BY m.id
         """, (batch_id,)).fetchall()
@@ -1560,6 +1568,7 @@ def stok_invoice_batch(request: Request, batch_id: str, print: int = 0):
         "info_value": f"{len(mutasi_list)} produk",
         "info_extra": f"Tipe: {'Retur Penjualan' if is_retur else 'Pembelian'}",
         "detail_items": [
+            {"label": "Supplier/Distributor", "value": mutasi_list[0].get("supplier_nama") or "-"},
             {"label": "Keterangan", "value": ket or "-"},
             {"label": "Diproses oleh", "value": mutasi_list[0]["user_nama"] or "-"},
         ],
@@ -1598,20 +1607,23 @@ def stok_keluar_page(request: Request, tgl_dari: str = "", tgl_sampai: str = "")
             where += " AND DATE(m.created_at) <= ?"
             params.append(tgl_sampai)
         mutasi = db.execute(f"""
-            SELECT m.*, p.nama as produk_nama, p.kode as produk_kode, u.nama as user_nama
+            SELECT m.*, p.nama as produk_nama, p.kode as produk_kode, u.nama as user_nama,
+                   s.nama as supplier_nama
             FROM stok_mutasi m JOIN produk p ON m.produk_id = p.id
             LEFT JOIN users u ON m.user_id = u.id
+            LEFT JOIN supplier s ON m.supplier_id = s.id
             WHERE {where} ORDER BY m.created_at DESC LIMIT 50
         """, params).fetchall()
+        suppliers = db.execute("SELECT id, nama FROM supplier WHERE aktif=1 ORDER BY nama").fetchall()
     return templates.TemplateResponse(request, "stok_keluar.html", {
         "request": request, "user": request.state.user, "produk": produk, "mutasi": mutasi,
-        "tgl_dari": tgl_dari, "tgl_sampai": tgl_sampai,
+        "tgl_dari": tgl_dari, "tgl_sampai": tgl_sampai, "suppliers": suppliers,
     })
 
 @app.post("/stok/keluar")
 @require_auth
 def stok_keluar(request: Request, produk_id: int = Form(...), jumlah: int = Form(...),
-                keterangan: str = Form(""), tipe_detail: str = Form("Lainnya")):
+                keterangan: str = Form(""), tipe_detail: str = Form("Lainnya"), supplier_id: int = Form(0))
     # Prepend tipe_detail to keterangan for badge detection
     ket_final = f"{tipe_detail}" + (f" - {keterangan}" if keterangan else "")
     with get_db() as db:
@@ -1620,9 +1632,9 @@ def stok_keluar(request: Request, produk_id: int = Form(...), jumlah: int = Form
             return RedirectResponse("/stok/keluar?error=stok_kurang", status_code=303)
         db.execute("UPDATE produk SET stok = stok - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (jumlah, produk_id))
         db.execute("""
-            INSERT INTO stok_mutasi (produk_id, tipe, jumlah, harga_satuan, user_id, keterangan)
-            VALUES (?, 'keluar', ?, ?, ?, ?)
-        """, (produk_id, jumlah, produk["harga_jual"], request.state.user["id"], ket_final))
+            INSERT INTO stok_mutasi (produk_id, tipe, jumlah, harga_satuan, user_id, keterangan, supplier_id)
+            VALUES (?, 'keluar', ?, ?, ?, ?, ?)
+        """, (produk_id, jumlah, produk["harga_jual"], request.state.user["id"], ket_final, supplier_id or None))
         mutasi_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
         log_audit(db, request.state.user, "Stok Keluar", "stok", f"Produk ID {produk_id} -{jumlah} ({ket_final})", request.client.host if request.client else "")
     check_low_stock()
@@ -1639,6 +1651,7 @@ async def stok_keluar_checkout(request: Request):
     items = data.get('items', [])
     tipe_detail = data.get('tipe_detail', 'Lainnya')
     keterangan = data.get('keterangan', tipe_detail)
+    supplier_id = data.get('supplier_id') or None
 
     if not items:
         return {"success": False, "error": "Daftar kosong"}
@@ -1662,9 +1675,9 @@ async def stok_keluar_checkout(request: Request):
 
             # Insert mutation
             db.execute("""
-                INSERT INTO stok_mutasi (produk_id, tipe, jumlah, harga_satuan, user_id, keterangan, batch_id)
-                VALUES (?, 'keluar', ?, ?, ?, ?, ?)
-            """, (produk_id, jumlah, produk["harga_jual"], user['id'], keterangan, batch_id))
+                INSERT INTO stok_mutasi (produk_id, tipe, jumlah, harga_satuan, user_id, keterangan, batch_id, supplier_id)
+                VALUES (?, 'keluar', ?, ?, ?, ?, ?, ?)
+            """, (produk_id, jumlah, produk["harga_jual"], user['id'], keterangan, batch_id, supplier_id))
 
             mutasi_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
             mutasi_ids.append(mutasi_id)
@@ -1738,10 +1751,11 @@ def stok_invoice(request: Request, mutasi_id: int, print: int = 0):
     with get_db() as db:
         mutasi = db.execute("""
             SELECT m.*, p.nama as produk_nama, p.kode as produk_kode, p.satuan,
-                   u.nama as user_nama
+                   u.nama as user_nama, s.nama as supplier_nama
             FROM stok_mutasi m
             JOIN produk p ON m.produk_id = p.id
             LEFT JOIN users u ON m.user_id = u.id
+            LEFT JOIN supplier s ON m.supplier_id = s.id
             WHERE m.id = ?
         """, (mutasi_id,)).fetchone()
 
@@ -1785,6 +1799,7 @@ def stok_invoice(request: Request, mutasi_id: int, print: int = 0):
         "info_value": mutasi["produk_nama"],
         "info_extra": f"Kode: {mutasi['produk_kode']}" if mutasi["produk_kode"] else "",
         "detail_items": [
+            {"label": "Supplier/Distributor", "value": mutasi.get("supplier_nama") or "-"},
             {"label": "Jumlah", "value": f"{'+ ' if is_masuk else '- '}{mutasi['jumlah']} {mutasi['satuan'] or 'pcs'}"},
             {"label": "Harga Satuan", "value": f"Rp {mutasi['harga_satuan']:,.0f}" if mutasi["harga_satuan"] else "-"},
             {"label": "Total Nilai", "value": f"Rp {mutasi['harga_satuan'] * mutasi['jumlah']:,.0f}" if mutasi["harga_satuan"] else "-"},
