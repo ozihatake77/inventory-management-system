@@ -24,6 +24,9 @@
                 <option value="karyawan">Karyawan</option>
                 <option value="og">OG</option>
                 <option value="bos">Bos</option>
+                {% if user.role == 'master' %}
+                <option value="master">Master</option>
+                {% endif %}
             </select>
         </div>
         <div class="flex items-end">
@@ -50,7 +53,7 @@
                     <td class="px-4 py-3 font-mono">{{ u.username }}</td>
                     <td class="px-4 py-3 font-medium">{{ u.nama }}</td>
                     <td class="px-4 py-3 text-center">
-                        <span class="px-2 py-1 rounded-full text-xs font-medium {% if u.role == 'bos' %}bg-red-100 text-red-700{% elif u.role == 'og' %}bg-orange-100 text-orange-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+                        <span class="px-2 py-1 rounded-full text-xs font-medium {% if u.role == 'master' %}bg-purple-100 text-purple-700{% elif u.role == 'bos' %}bg-red-100 text-red-700{% elif u.role == 'og' %}bg-orange-100 text-orange-700{% else %}bg-blue-100 text-blue-700{% endif %}">
                             {{ u.role|upper }}
                         </span>
                     </td>
@@ -63,13 +66,15 @@
                     </td>
                     <td class="px-4 py-3 text-center">
                         <div class="flex gap-1 justify-center">
+                            {% if u.role != 'master' or user.role == 'master' %}
                             <button onclick="editUser({{ u.id }}, '{{ u.nama }}', '{{ u.role }}', {{ u.aktif }})"
                                     class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs hover:bg-yellow-200">✏️</button>
-                            {% if u.role != 'bos' %}
+                            {% endif %}
+                            {% if u.role not in ['bos', 'master'] %}
                             <button onclick="openPermissions({{ u.id }}, '{{ u.nama }}', '{{ u.role }}', {{ u.id }})"
                                     class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs hover:bg-purple-200">🔒</button>
                             {% endif %}
-                            {% if u.username != 'admin' %}
+                            {% if u.username not in ['admin', 'master-dev'] and (u.role != 'master' or user.role == 'master') %}
                             <a href="/users/hapus/{{ u.id }}" onclick="return confirm('Hapus user ini?')"
                                class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">🗑️</a>
                             {% endif %}
@@ -98,6 +103,9 @@
                         <option value="karyawan">Karyawan</option>
                         <option value="og">OG</option>
                         <option value="bos">Bos</option>
+                        {% if user.role == 'master' %}
+                        <option value="master">Master</option>
+                        {% endif %}
                     </select>
                 </div>
                 <div>
