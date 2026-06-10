@@ -553,6 +553,7 @@ def init_db():
         try: db.execute("ALTER TABLE pembayaran_hutang ADD COLUMN metode_bayar TEXT DEFAULT 'tunai'")
         except: pass
         try: db.execute("ALTER TABLE stok_opname ADD COLUMN session_id INTEGER")
+        except: pass
         try: db.execute("ALTER TABLE stok_mutasi ADD COLUMN supplier_id INTEGER REFERENCES supplier(id) ON DELETE SET NULL")
         except: pass
         # Init permissions for existing users who don't have any
@@ -1443,7 +1444,7 @@ def stok_masuk_page(request: Request, tgl_dari: str = "", tgl_sampai: str = ""):
 @require_auth
 def stok_masuk(request: Request, produk_id: int = Form(...), jumlah: int = Form(...),
                harga_satuan: float = Form(0), keterangan: str = Form(""),
-               tipe_detail: str = Form("Pembelian"), supplier_id: int = Form(0))
+               tipe_detail: str = Form("Pembelian"), supplier_id: int = Form(0)):
     # Prepend tipe_detail to keterangan for badge detection
     ket_final = f"{tipe_detail}" + (f" - {keterangan}" if keterangan else "")
     with get_db() as db:
@@ -1623,7 +1624,7 @@ def stok_keluar_page(request: Request, tgl_dari: str = "", tgl_sampai: str = "")
 @app.post("/stok/keluar")
 @require_auth
 def stok_keluar(request: Request, produk_id: int = Form(...), jumlah: int = Form(...),
-                keterangan: str = Form(""), tipe_detail: str = Form("Lainnya"), supplier_id: int = Form(0))
+                keterangan: str = Form(""), tipe_detail: str = Form("Lainnya"), supplier_id: int = Form(0)):
     # Prepend tipe_detail to keterangan for badge detection
     ket_final = f"{tipe_detail}" + (f" - {keterangan}" if keterangan else "")
     with get_db() as db:
