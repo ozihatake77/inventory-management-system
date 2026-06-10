@@ -112,7 +112,20 @@
     </div>
 </div>
 
-<!-- Modal Riwayat -->
+<script>
+function editPelanggan(id, nama, alamat, telepon, email, catatan) {
+    document.getElementById('formEdit').action = '/pelanggan/edit/' + id;
+    document.getElementById('edit_nama').value = nama;
+    document.getElementById('edit_alamat').value = alamat;
+    document.getElementById('edit_telepon').value = telepon;
+    document.getElementById('edit_email').value = email;
+    document.getElementById('edit_catatan').value = catatan;
+    document.getElementById('modalEdit').classList.remove('hidden');
+}
+</script>
+{% endif %}
+
+<!-- Modal Riwayat (untuk semua role) -->
 <div id="modalRiwayat" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
         <div class="p-6">
@@ -131,16 +144,6 @@
 </div>
 
 <script>
-function editPelanggan(id, nama, alamat, telepon, email, catatan) {
-    document.getElementById('formEdit').action = '/pelanggan/edit/' + id;
-    document.getElementById('edit_nama').value = nama;
-    document.getElementById('edit_alamat').value = alamat;
-    document.getElementById('edit_telepon').value = telepon;
-    document.getElementById('edit_email').value = email;
-    document.getElementById('edit_catatan').value = catatan;
-    document.getElementById('modalEdit').classList.remove('hidden');
-}
-
 function showRiwayat(id, nama) {
     document.getElementById('riwayatNama').textContent = nama;
     document.getElementById('riwayatContent').innerHTML = `
@@ -199,5 +202,4 @@ function showRiwayat(id, nama) {
         });
 }
 </script>
-{% endif %}
 {% endblock %}
