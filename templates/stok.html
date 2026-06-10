@@ -3,6 +3,28 @@
 {% block header %}📦 Stok Barang{% endblock %}
 
 {% block content %}
+<!-- ═══════════════════════════════════════════════════════════════
+     PRINT HEADER (only visible when printing)
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="print-header">
+    <h1>{{ nama_toko or 'Toko Elektronik Rumah Tangga' }}</h1>
+    <p>{{ alamat_toko or '' }}</p>
+    <p>Telp: {{ telepon_toko or '-' }} | Email: {{ email_toko or '-' }}</p>
+    <p style="margin-top:3mm; font-size:14pt; font-weight:bold;">LAPORAN STOK BARANG</p>
+</div>
+
+<div class="print-filter-info">
+    <strong>Filter:</strong>
+    {% if tgl_dari or tgl_sampai %}
+        Periode {{ tgl_dari or '...' }} s/d {{ tgl_sampai or '...' }}
+    {% else %}
+        Semua Tanggal
+    {% endif %}
+    {% if filter_kategori %} | Kategori: {{ filter_kategori }}{% endif %}
+    {% if q %} | Pencarian: "{{ q }}"{% endif %}
+    | Dicetak: {{ now }}
+</div>
+
 <!-- Search & Filter Bar -->
 <div class="bg-white rounded-xl shadow-sm border p-5 mb-6">
     <form method="get" action="/stok" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
@@ -71,7 +93,7 @@
 
 <!-- Data Table -->
 <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
-    <div class="p-4 border-b flex items-center justify-between">
+    <div class="p-4 border-b flex items-center justify-between no-print">
         <h3 class="font-semibold text-gray-800">Data Stok Barang</h3>
         <div class="flex items-center gap-2">
             <button onclick="window.print()" class="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 font-medium">
@@ -84,6 +106,7 @@
         <table class="w-full text-sm">
             <thead class="bg-gray-50 border-b">
                 <tr>
+                    <th class="px-4 py-3 text-left font-medium text-gray-600">No</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Tanggal</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Kategori Barang</th>
                     <th class="px-4 py-3 text-left font-medium text-gray-600">Nama Barang</th>
@@ -95,6 +118,7 @@
             <tbody class="divide-y divide-gray-100">
                 {% for item in stok_data %}
                 <tr class="hover:bg-gray-50 transition">
+                    <td class="px-4 py-3 text-gray-500">{{ loop.index }}</td>
                     <td class="px-4 py-3 font-mono text-xs text-gray-700">{{ item.tgl_transaksi or '-' }}</td>
                     <td class="px-4 py-3">
                         <span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">{{ item.kategori_nama or '-' }}</span>
@@ -134,5 +158,33 @@
         <p>Tidak ada data stok ditemukan</p>
     </div>
     {% endif %}
+</div>
+
+<!-- Print Summary (only visible when printing) -->
+<div class="print-summary">
+    <table>
+        <tr>
+            <td><strong>Total Barang</strong></td>
+            <td>: {{ stok_data|length }} item</td>
+        </tr>
+        <tr>
+            <td><strong>Total Terima</strong></td>
+            <td>: {{ stok_data|sum(attribute='terima') }} unit</td>
+        </tr>
+        <tr>
+            <td><strong>Total Keluar</strong></td>
+            <td>: {{ stok_data|sum(attribute='keluar') }} unit</td>
+        </tr>
+        <tr>
+            <td><strong>Total Stok Akhir</strong></td>
+            <td>: {{ stok_data|sum(attribute='stok_akhir') }} unit</td>
+        </tr>
+    </table>
+</div>
+
+<!-- Print Footer (only visible when printing) -->
+<div class="print-footer">
+    <p>Dicetak oleh: {{ user.nama }} ({{ user.role|upper }}) | {{ now }}</p>
+    <p>{{ nama_toko or 'Toko Elektronik Rumah Tangga' }} — Sistem Manajemen Stok</p>
 </div>
 {% endblock %}

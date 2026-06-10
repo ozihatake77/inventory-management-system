@@ -1395,6 +1395,10 @@ def stok_page(request: Request, q: str = "", filter_kategori: str = "", filter_k
         "kode_list": kode_list, "q": q,
         "filter_kategori": filter_kategori, "filter_kode": filter_kode,
         "tgl_dari": tgl_dari, "tgl_sampai": tgl_sampai,
+        "nama_toko": get_setting(db, "nama_toko", "Toko Elektronik Rumah Tangga"),
+        "alamat_toko": get_setting(db, "alamat_toko", ""),
+        "telepon_toko": get_setting(db, "telepon_toko", ""),
+        "email_toko": get_setting(db, "email_toko", ""),
     })
 
 # ═══════════════════════════════════════════════════════════════════════
